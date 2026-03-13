@@ -1,104 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../../core/widgets/app_header.dart';
-
-// ─── DATOS EJEMPLO (reemplazar con GET /api/arrendatarios/{id}/) ──────────────
-class _InquilinoEditData {
-  final int id;
-  final String nombre;
-  final String apellidos;
-  final String telefono;
-  final String email;
-  final DateTime? fechaNacimiento;
-  final String folioIne;
-  final String? fotoUrl;
-  final bool mascotas;
-  final bool hijos;
-  final String estado;
-  // Contrato actual
-  final int? propiedadId;
-  final DateTime? fechaInicio;
-  final DateTime? fechaFin;
-  final String renta;
-  final String deposito;
-  final String diaPago;
-  final String periodoPago;
-  final String incrementoAnual;
-  final String penalizacion;
-  final String observaciones;
-  final String estadoContrato;
-  // DatosFiscales
-  final String fiscalRazonSocial;
-  final String fiscalRfc;
-  final String fiscalRegimen;
-  final String fiscalUsoCfdi;
-  final String fiscalCp;
-  final String fiscalCorreo;
-
-  const _InquilinoEditData({
-    required this.id,
-    required this.nombre,
-    required this.apellidos,
-    required this.telefono,
-    required this.email,
-    this.fechaNacimiento,
-    required this.folioIne,
-    this.fotoUrl,
-    required this.mascotas,
-    required this.hijos,
-    required this.estado,
-    this.propiedadId,
-    this.fechaInicio,
-    this.fechaFin,
-    required this.renta,
-    required this.deposito,
-    required this.diaPago,
-    required this.periodoPago,
-    required this.incrementoAnual,
-    required this.penalizacion,
-    required this.observaciones,
-    required this.estadoContrato,
-    this.fiscalRazonSocial = '',
-    this.fiscalRfc = '',
-    this.fiscalRegimen = '606 - Arrendamiento',
-    this.fiscalUsoCfdi = 'G03',
-    this.fiscalCp = '',
-    this.fiscalCorreo = '',
-  });
-}
-
-final _mockInquilino = _InquilinoEditData(
-  id: 1,
-  nombre: 'Juan',
-  apellidos: 'Pérez López',
-  telefono: '55 1234 5678',
-  email: 'juan.perez@email.com',
-  fechaNacimiento: DateTime(1990, 10, 12),
-  folioIne: 'PELJ901012HDFRZN01',
-  mascotas: false,
-  hijos: true,
-  estado: 'activo',
-  propiedadId: 1,
-  fechaInicio: DateTime(2023, 1, 1),
-  fechaFin: DateTime(2023, 12, 31),
-  renta: '12500.00',
-  deposito: '12500.00',
-  diaPago: '1',
-  periodoPago: 'mensual',
-  incrementoAnual: '0.00',
-  penalizacion: '',
-  observaciones: '',
-  estadoContrato: 'activo',
-  fiscalRazonSocial: 'Juan Pérez López',
-  fiscalRfc: 'PELJ901012ABC',
-  fiscalRegimen: '606 - Arrendamiento',
-  fiscalUsoCfdi: 'G03',
-  fiscalCp: '06600',
-  fiscalCorreo: 'factura@juanperez.com',
-);
+import '../../../core/utils/upper_case_formatter.dart';
+import '../../../core/services/api_client.dart';
+import '../../../data/services/arrendatarios_service.dart';
+import '../../../data/services/propiedades_service.dart';
 
 class EditarInquilinoScreen extends StatefulWidget {
   final int? arrendatarioId;
@@ -119,7 +29,10 @@ class _EditarInquilinoScreenState extends State<EditarInquilinoScreen> {
   File? _imageFile;
   Uint8List? _webImage;
   bool _imagenCambiada = false;
-  _InquilinoEditData? _data;
+  ArrendatarioDetalle? _data;
+  bool _isLoading = false;
+  bool _cargando = true;
+  String? _errorCarga;
 
   // ── Controladores — Modelo Arrendatario ───────────────────────────────────
   late TextEditingController _nombreCtrl;
@@ -158,11 +71,7 @@ class _EditarInquilinoScreenState extends State<EditarInquilinoScreen> {
   String _fiscalUsoCfdi  = 'G03';
 
   // TODO: cargar desde → GET /api/propiedades/?estado=disponible
-  final List<Map<String, dynamic>> _propiedades = [
-    {'id': 1, 'nombre': 'Apartamento Moderno Centro'},
-    {'id': 2, 'nombre': 'Casa Familiar Jardines'},
-    {'id': 3, 'nombre': 'Loft Industrial'},
-  ];
+  List<Map<String, dynamic>> _propiedades = [];
 
   static const List<Map<String, String>> _periodosPago = [
     {'value': 'diario',  'label': 'Diario'},
@@ -173,37 +82,65 @@ class _EditarInquilinoScreenState extends State<EditarInquilinoScreen> {
   @override
   void initState() {
     super.initState();
-    // TODO: cargar desde Django → GET /api/arrendatarios/{id}/
-    _data = _mockInquilino;
-    final d = _data!;
-    _nombreCtrl         = TextEditingController(text: d.nombre);
-    _apellidosCtrl      = TextEditingController(text: d.apellidos);
-    _telefonoCtrl       = TextEditingController(text: d.telefono);
-    _emailCtrl          = TextEditingController(text: d.email);
-    _folioIneCtrl       = TextEditingController(text: d.folioIne);
-    _fechaNacimiento    = d.fechaNacimiento;
-    _mascotas           = d.mascotas;
-    _hijos              = d.hijos;
-    _estado             = d.estado;
-    // Contrato
-    _rentaCtrl          = TextEditingController(text: d.renta);
-    _depositoCtrl       = TextEditingController(text: d.deposito);
-    _diaPagoCtrl        = TextEditingController(text: d.diaPago);
-    _incrementoAnualCtrl = TextEditingController(text: d.incrementoAnual);
-    _penalizacionCtrl   = TextEditingController(text: d.penalizacion);
-    _observacionesCtrl  = TextEditingController(text: d.observaciones);
-    _periodoPago        = d.periodoPago;
-    _estadoContrato     = d.estadoContrato;
-    _propiedadId        = d.propiedadId;
-    _fechaInicio        = d.fechaInicio;
-    _fechaFin           = d.fechaFin;
-    // Fiscal
-    _fiscalRazonSocialCtrl = TextEditingController(text: d.fiscalRazonSocial);
-    _fiscalRfcCtrl         = TextEditingController(text: d.fiscalRfc);
-    _fiscalCpCtrl          = TextEditingController(text: d.fiscalCp);
-    _fiscalCorreoCtrl      = TextEditingController(text: d.fiscalCorreo);
-    _fiscalRegimen         = d.fiscalRegimen;
-    _fiscalUsoCfdi         = d.fiscalUsoCfdi;
+    // Inicializar controladores con strings vacíos hasta que cargue
+    _nombreCtrl          = TextEditingController();
+    _apellidosCtrl       = TextEditingController();
+    _telefonoCtrl        = TextEditingController();
+    _emailCtrl           = TextEditingController();
+    _folioIneCtrl        = TextEditingController();
+    _rentaCtrl           = TextEditingController();
+    _depositoCtrl        = TextEditingController();
+    _diaPagoCtrl         = TextEditingController(text: '1');
+    _incrementoAnualCtrl = TextEditingController(text: '0.00');
+    _penalizacionCtrl    = TextEditingController();
+    _observacionesCtrl   = TextEditingController();
+    _fiscalRazonSocialCtrl = TextEditingController();
+    _fiscalRfcCtrl         = TextEditingController();
+    _fiscalCpCtrl          = TextEditingController();
+    _fiscalCorreoCtrl      = TextEditingController();
+    _cargarDatos();
+    _cargarPropiedades();
+  }
+
+  Future<void> _cargarDatos() async {
+    if (widget.arrendatarioId == null) {
+      setState(() { _cargando = false; _errorCarga = 'ID no válido'; });
+      return;
+    }
+    try {
+      final d = await ArrendatariosService.detalle(widget.arrendatarioId!);
+      if (!mounted) return;
+      setState(() {
+        _data = d;
+        _nombreCtrl.text         = d.nombre;
+        _apellidosCtrl.text      = d.apellidos;
+        _telefonoCtrl.text       = d.telefono;
+        _emailCtrl.text          = d.email;
+        _folioIneCtrl.text       = d.folioIne;
+        _fechaNacimiento         = d.fechaNacimiento != null
+            ? DateTime.tryParse(d.fechaNacimiento!)
+            : null;
+        _mascotas   = d.mascotas;
+        _hijos      = d.hijos;
+        _estado     = d.estado;
+        _cargando   = false;
+      });
+    } on ApiException catch (e) {
+      if (mounted) setState(() { _cargando = false; _errorCarga = e.message; });
+    } catch (_) {
+      if (mounted) setState(() { _cargando = false; _errorCarga = 'Sin conexión'; });
+    }
+  }
+
+  Future<void> _cargarPropiedades() async {
+    try {
+      final lista = await PropiedadesService.listar();
+      if (mounted) {
+        setState(() {
+          _propiedades = lista.map((p) => {'id': p.id, 'nombre': p.nombre}).toList();
+        });
+      }
+    } catch (_) {}
   }
 
   @override
@@ -297,53 +234,24 @@ class _EditarInquilinoScreenState extends State<EditarInquilinoScreen> {
     if (picked != null) setState(() => _fechaNacimiento = picked);
   }
 
-  void _onSubmit() {
-    if (_formKey.currentState!.validate()) {
-      // TODO: PUT /api/arrendatarios/{id}/
-      final data = {
-        'nombre':           _nombreCtrl.text,
-        'apellidos':        _apellidosCtrl.text,
-        'telefono':         _telefonoCtrl.text,
-        'email':            _emailCtrl.text,
+  void _onSubmit() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_isLoading || widget.arrendatarioId == null) return;
+
+    setState(() => _isLoading = true);
+    try {
+      await ArrendatariosService.actualizar(widget.arrendatarioId!, {
+        'nombre':           _nombreCtrl.text.trim(),
+        'apellidos':        _apellidosCtrl.text.trim(),
+        'telefono':         _telefonoCtrl.text.trim(),
+        'email':            _emailCtrl.text.trim(),
         'fecha_nacimiento': _fechaNacimiento?.toIso8601String().split('T')[0],
         'folio_ine':        _folioIneCtrl.text.toUpperCase(),
         'mascotas':         _mascotas,
         'hijos':            _hijos,
         'estado':           _estado,
-        // foto: _imageFile / _webImage → multipart
-      };
-      debugPrint('POST arrendatario: $data');
-
-      // TODO: POST /api/contratos/
-      final contratoData = {
-        'arrendatario':          null, // ID devuelto del POST anterior
-        'propiedad':             _propiedadId,
-        'fecha_inicio':          _fechaInicio?.toIso8601String().split('T')[0],
-        'fecha_fin':             _fechaFin?.toIso8601String().split('T')[0],
-        'renta_acordada':        _rentaCtrl.text,
-        'deposito':              _depositoCtrl.text,
-        'dia_pago':              _diaPagoCtrl.text,
-        'periodo_pago':          _periodoPago,
-        'incremento_anual':      _incrementoAnualCtrl.text,
-        'penalizacion_anticipada': _penalizacionCtrl.text,
-        'observaciones':         _observacionesCtrl.text,
-        'estado':                _estadoContrato,
-      };
-      debugPrint('POST contrato: $contratoData');
-
-      // TODO: PUT /api/fiscal/{id}/ (tipo_entidad=arrendatario)
-      final fiscalData = {
-        'tipo_entidad':          'arrendatario',
-        'entidad_id':            widget.arrendatarioId,
-        'nombre_o_razon_social': _fiscalRazonSocialCtrl.text,
-        'rfc':                   _fiscalRfcCtrl.text.toUpperCase(),
-        'regimen_fiscal':        _fiscalRegimen,
-        'uso_cfdi':              _fiscalUsoCfdi,
-        'codigo_postal':         _fiscalCpCtrl.text,
-        'correo_facturacion':    _fiscalCorreoCtrl.text,
-      };
-      debugPrint('PUT fiscal: $fiscalData');
-
+      });
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Inquilino actualizado correctamente'),
@@ -352,6 +260,20 @@ class _EditarInquilinoScreenState extends State<EditarInquilinoScreen> {
         ),
       );
       Navigator.pop(context);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message), backgroundColor: Colors.red.shade400,
+            behavior: SnackBarBehavior.floating),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: const Text('Sin conexión con el servidor'),
+            backgroundColor: Colors.red.shade400, behavior: SnackBarBehavior.floating),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -359,44 +281,44 @@ class _EditarInquilinoScreenState extends State<EditarInquilinoScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Eliminar Inquilino',
-            style: TextStyle(
-                color: Color(0xFF225378), fontWeight: FontWeight.bold)),
+            style: TextStyle(color: Color(0xFF225378), fontWeight: FontWeight.bold)),
         content: Text(
-          '¿Estás seguro de eliminar a "${_data?.nombre} ${_data?.apellidos}"?\nEsta acción no se puede deshacer.',
+          '¿Estás seguro de eliminar a "${_data?.nombreCompleto}"?\nEsta acción no se puede deshacer.',
           style: const TextStyle(color: Colors.grey, fontSize: 13),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancelar',
-                style: TextStyle(color: Colors.grey)),
+            child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(ctx);
-              // TODO: DELETE /api/arrendatarios/{id}/
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Inquilino eliminado'),
-                  backgroundColor: Colors.red,
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-              Navigator.pushNamedAndRemoveUntil(
-                  context, '/inquilinos', (r) => false);
+              if (widget.arrendatarioId == null) return;
+              try {
+                await ArrendatariosService.eliminar(widget.arrendatarioId!);
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Inquilino eliminado'),
+                      backgroundColor: Colors.red, behavior: SnackBarBehavior.floating),
+                );
+                Navigator.pushNamedAndRemoveUntil(context, '/inquilinos', (r) => false);
+              } on ApiException catch (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(e.message), backgroundColor: Colors.red,
+                      behavior: SnackBarBehavior.floating),
+                );
+              }
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
+              backgroundColor: Colors.red, foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               elevation: 0,
             ),
-            child: const Text('Eliminar',
-                style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text('Eliminar', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -405,6 +327,27 @@ class _EditarInquilinoScreenState extends State<EditarInquilinoScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_cargando) {
+      return const Scaffold(
+        body: Center(
+            child: CircularProgressIndicator(color: Color(0xFF1695A3))),
+      );
+    }
+    if (_errorCarga != null) {
+      return Scaffold(
+        appBar: const AppHeader(title: 'Editar Inquilino', showBack: true),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, color: Colors.grey, size: 48),
+              const SizedBox(height: 12),
+              Text(_errorCarga!, style: const TextStyle(color: Colors.grey)),
+            ],
+          ),
+        ),
+      );
+    }
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: const AppHeader(title: 'Editar Inquilino', showBack: true),
@@ -774,12 +717,17 @@ class _EditarInquilinoScreenState extends State<EditarInquilinoScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: _onSubmit,
-                  icon: const Icon(Icons.save_outlined, size: 20),
+                  onPressed: _isLoading ? null : _onSubmit,
+                  icon: _isLoading
+                      ? const SizedBox(
+                          width: 18, height: 18,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Icon(Icons.save_outlined, size: 20),
                   label: const Text(
                     'Guardar Cambios',
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 16),
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF225378),

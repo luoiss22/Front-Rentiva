@@ -1,41 +1,6 @@
 import 'package:flutter/material.dart';
-
-// Modelo simple de usuario
-class _Usuario {
-  final String email;
-  final String password;
-  final String rol; // 'admin' o 'propietario'
-  final String nombre;
-
-  const _Usuario({
-    required this.email,
-    required this.password,
-    required this.rol,
-    required this.nombre,
-  });
-}
-
-// Usuarios de ejemplo (simulando base de datos)
-const List<_Usuario> _usuariosMock = [
-  _Usuario(
-    email: 'admin@rentiva.com',
-    password: 'admin123',
-    rol: 'admin',
-    nombre: 'Administrador',
-  ),
-  _Usuario(
-    email: 'propietario@rentiva.com',
-    password: 'prop123',
-    rol: 'propietario',
-    nombre: 'Juan Sebastián',
-  ),
-  _Usuario(
-    email: 'maria@rentiva.com',
-    password: 'maria123',
-    rol: 'propietario',
-    nombre: 'María González',
-  ),
-];
+import '../../../core/services/auth_service.dart';
+import '../../../core/services/api_client.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -50,6 +15,7 @@ class _LoginScreenState extends State<LoginScreen>
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _isLoading = false;
 
   late AnimationController _animController;
   late Animation<double> _fadeAnimation;
@@ -80,55 +46,56 @@ class _LoginScreenState extends State<LoginScreen>
     super.dispose();
   }
 
-void _onSubmit() {
-  if (_formKey.currentState!.validate()) {
-    final email = _emailController.text.trim();
-    final password = _passwordController.text.trim();
+void _onSubmit() async {
+  if (!_formKey.currentState!.validate()) return;
+  if (_isLoading) return;
 
-    // Buscar usuario en la lista mock
-    final usuario = _usuariosMock.firstWhere(
-      (u) => u.email == email && u.password == password,
-      orElse: () => const _Usuario(
-        email: '',
-        password: '',
-        rol: '',
-        nombre: '',
-      ),
+  setState(() => _isLoading = true);
+
+  try {
+    final result = await AuthService.login(
+      email: _emailController.text.trim(),
+      password: _passwordController.text.trim(),
     );
 
-    // Validar credenciales
-    if (usuario.email.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Credenciales incorrectas'),
-          backgroundColor: Colors.red.shade400,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
-      return;
-    }
+    if (!mounted) return;
 
-    // Mostrar mensaje de bienvenida
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('¡Bienvenido ${usuario.nombre}!'),
+        content: Text('¡Bienvenido ${result.propietario.nombre}!'),
         backgroundColor: const Color(0xFF1695A3),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
 
-    // Redirigir según el rol
-    if (usuario.rol == 'admin') {
+    if (result.propietario.esAdmin) {
       Navigator.pushReplacementNamed(context, '/admin');
-    } else if (usuario.rol == 'propietario') {
+    } else {
       Navigator.pushReplacementNamed(context, '/inicio-usuario');
     }
+  } on ApiException catch (e) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(e.message),
+        backgroundColor: Colors.red.shade400,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  } catch (_) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Sin conexión con el servidor'),
+        backgroundColor: Colors.red.shade400,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  } finally {
+    if (mounted) setState(() => _isLoading = false);
   }
 }
 
@@ -299,8 +266,17 @@ void _onSubmit() {
                               SizedBox(
                                 width: double.infinity,
                                 child: ElevatedButton.icon(
-                                  onPressed: _onSubmit,
-                                  icon: const Icon(Icons.arrow_forward, size: 20),
+                                  onPressed: _isLoading ? null : _onSubmit,
+                                  icon: _isLoading
+                                      ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                      : const Icon(Icons.arrow_forward, size: 20),
                                   label: const Text(
                                     'Iniciar Sesión',
                                     style: TextStyle(

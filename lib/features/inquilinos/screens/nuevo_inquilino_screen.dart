@@ -4,6 +4,10 @@ import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../../core/widgets/app_header.dart';
+import '../../../core/utils/upper_case_formatter.dart';
+import '../../../core/services/api_client.dart';
+import '../../../data/services/arrendatarios_service.dart';
+import '../../../data/services/propiedades_service.dart';
 
 class NuevoInquilinoScreen extends StatefulWidget {
   const NuevoInquilinoScreen({super.key});
@@ -56,12 +60,32 @@ class _NuevoInquilinoScreenState extends State<NuevoInquilinoScreen> {
   String _fiscalRegimen        = '606 - Arrendamiento';
   String _fiscalUsoCfdi        = 'G03';
 
+  // Estado de carga
+  bool _isLoading = false;
+
   // TODO: cargar desde → GET /api/propiedades/?estado=disponible
-  final List<Map<String, dynamic>> _propiedades = [
-    {'id': 1, 'nombre': 'Apartamento Moderno Centro'},
-    {'id': 2, 'nombre': 'Casa Familiar Jardines'},
-    {'id': 3, 'nombre': 'Loft Industrial'},
-  ];
+  List<Map<String, dynamic>> _propiedades = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarPropiedades();
+  }
+
+  Future<void> _cargarPropiedades() async {
+    try {
+      final lista = await PropiedadesService.listar(estado: 'disponible');
+      if (mounted) {
+        setState(() {
+          _propiedades = lista
+              .map((p) => {'id': p.id, 'nombre': p.nombre})
+              .toList();
+        });
+      }
+    } catch (_) {
+      // Si falla, el dropdown queda vacío — no es crítico
+    }
+  }
 
   static const List<Map<String, String>> _periodosPago = [
     {'value': 'diario',  'label': 'Diario'},
@@ -160,53 +184,45 @@ class _NuevoInquilinoScreenState extends State<NuevoInquilinoScreen> {
     if (picked != null) setState(() => _fechaNacimiento = picked);
   }
 
-  void _onSubmit() {
-    if (_formKey.currentState!.validate()) {
-      // TODO: POST /api/arrendatarios/
-      final data = {
-        'nombre':           _nombreCtrl.text,
-        'apellidos':        _apellidosCtrl.text,
-        'telefono':         _telefonoCtrl.text,
-        'email':            _emailCtrl.text,
+  void _onSubmit() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_isLoading) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      // 1. Crear arrendatario
+      final arrendatario = await ArrendatariosService.crear({
+        'nombre':           _nombreCtrl.text.trim(),
+        'apellidos':        _apellidosCtrl.text.trim(),
+        'telefono':         _telefonoCtrl.text.trim(),
+        'email':            _emailCtrl.text.trim(),
         'fecha_nacimiento': _fechaNacimiento?.toIso8601String().split('T')[0],
         'folio_ine':        _folioIneCtrl.text.toUpperCase(),
         'mascotas':         _mascotas,
         'hijos':            _hijos,
         'estado':           _estado,
-        // foto: _imageFile / _webImage → multipart
-      };
-      debugPrint('POST arrendatario: $data');
+      });
 
-      // TODO: POST /api/contratos/
-      final contratoData = {
-        'arrendatario':          null, // ID devuelto del POST anterior
-        'propiedad':             _propiedadId,
-        'fecha_inicio':          _fechaInicio?.toIso8601String().split('T')[0],
-        'fecha_fin':             _fechaFin?.toIso8601String().split('T')[0],
-        'renta_acordada':        _rentaCtrl.text,
-        'deposito':              _depositoCtrl.text,
-        'dia_pago':              _diaPagoCtrl.text,
-        'periodo_pago':          _periodoPago,
-        'incremento_anual':      _incrementoAnualCtrl.text,
-        'penalizacion_anticipada': _penalizacionCtrl.text,
-        'observaciones':         _observacionesCtrl.text,
-        'estado':                _estadoContrato,
-      };
-      debugPrint('POST contrato: $contratoData');
+      // 2. Crear contrato si se seleccionó propiedad y fechas
+      if (_propiedadId != null && _fechaInicio != null && _fechaFin != null) {
+        await ApiClient.post('/contratos/', {
+          'arrendatario':            arrendatario.id,
+          'propiedad':               _propiedadId,
+          'fecha_inicio':            _fechaInicio!.toIso8601String().split('T')[0],
+          'fecha_fin':               _fechaFin!.toIso8601String().split('T')[0],
+          'renta_acordada':          _rentaCtrl.text,
+          'deposito':                _depositoCtrl.text,
+          'dia_pago':                int.tryParse(_diaPagoCtrl.text) ?? 1,
+          'periodo_pago':            _periodoPago,
+          'incremento_anual':        _incrementoAnualCtrl.text.isNotEmpty ? _incrementoAnualCtrl.text : '0.00',
+          'penalizacion_anticipada': _penalizacionCtrl.text.isNotEmpty ? _penalizacionCtrl.text : '0.00',
+          'observaciones':           _observacionesCtrl.text,
+          'estado':                  _estadoContrato,
+        });
+      }
 
-      // TODO: POST /api/fiscal/ (tipo_entidad=arrendatario, entidad_id=id_arrendatario)
-      final fiscalData = {
-        'tipo_entidad':          'arrendatario',
-        'entidad_id':            null, // ID devuelto del POST arrendatario
-        'nombre_o_razon_social': _fiscalRazonSocialCtrl.text,
-        'rfc':                   _fiscalRfcCtrl.text.toUpperCase(),
-        'regimen_fiscal':        _fiscalRegimen,
-        'uso_cfdi':              _fiscalUsoCfdi,
-        'codigo_postal':         _fiscalCpCtrl.text,
-        'correo_facturacion':    _fiscalCorreoCtrl.text,
-      };
-      debugPrint('POST fiscal: $fiscalData');
-
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Inquilino registrado correctamente'),
@@ -215,6 +231,26 @@ class _NuevoInquilinoScreenState extends State<NuevoInquilinoScreen> {
         ),
       );
       Navigator.pop(context);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message),
+          backgroundColor: Colors.red.shade400,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Sin conexión con el servidor'),
+          backgroundColor: Colors.red.shade400,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -559,12 +595,17 @@ class _NuevoInquilinoScreenState extends State<NuevoInquilinoScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: _onSubmit,
-                  icon: const Icon(Icons.save_outlined, size: 20),
+                  onPressed: _isLoading ? null : _onSubmit,
+                  icon: _isLoading
+                      ? const SizedBox(
+                          width: 18, height: 18,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Icon(Icons.save_outlined, size: 20),
                   label: const Text(
                     'Registrar Inquilino',
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 16),
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF225378),

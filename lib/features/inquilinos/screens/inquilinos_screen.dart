@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/widgets/app_header.dart';
 import '../../../core/widgets/bottom_navbar.dart';
+import '../../../data/services/arrendatarios_service.dart';
 
 // ─── HELPERS DE CONTACTO ──────────────────────────────────────────────────────
 Future<void> _llamar(BuildContext context, String telefono) async {
@@ -50,149 +51,6 @@ Future<void> _abrirWhatsApp(BuildContext context, String telefono) async {
   }
 }
 
-// ─── ENUM ─────────────────────────────────────────────────────────────────────
-enum ArrendatarioEstado { activo, inactivo }
-enum PagoStatus { al_corriente, pendiente, atrasado }
-
-extension PagoStatusExt on PagoStatus {
-  String get label {
-    switch (this) {
-      case PagoStatus.al_corriente: return 'Al corriente';
-      case PagoStatus.pendiente:    return 'Pendiente';
-      case PagoStatus.atrasado:     return 'Atrasado';
-    }
-  }
-
-  Color get bgColor {
-    switch (this) {
-      case PagoStatus.al_corriente: return const Color(0xFFDCFCE7);
-      case PagoStatus.pendiente:    return const Color(0xFFFEF9C3);
-      case PagoStatus.atrasado:     return const Color(0xFFFFE4E6);
-    }
-  }
-
-  Color get textColor {
-    switch (this) {
-      case PagoStatus.al_corriente: return const Color(0xFF15803D);
-      case PagoStatus.pendiente:    return const Color(0xFFA16207);
-      case PagoStatus.atrasado:     return const Color(0xFFBE123C);
-    }
-  }
-}
-
-// ─── MODELO según Django ──────────────────────────────────────────────────────
-class Arrendatario {
-  final int id;
-  final String nombre;
-  final String apellidos;
-  final String telefono;
-  final String email;
-  final DateTime? fechaNacimiento;
-  final String folioIne;
-  final String? fotoUrl;
-  final bool mascotas;
-  final bool hijos;
-  final ArrendatarioEstado estado;
-  final DateTime createdAt;
-  final DateTime updatedAt;
-
-  // Campos relacionales (para vista de lista)
-  final String? propiedadAsignada; // nombre de la propiedad del contrato activo
-  final PagoStatus? statusPago;    // calculado desde contratos/pagos
-
-  const Arrendatario({
-    required this.id,
-    required this.nombre,
-    required this.apellidos,
-    required this.telefono,
-    required this.email,
-    this.fechaNacimiento,
-    required this.folioIne,
-    this.fotoUrl,
-    required this.mascotas,
-    required this.hijos,
-    required this.estado,
-    required this.createdAt,
-    required this.updatedAt,
-    this.propiedadAsignada,
-    this.statusPago,
-  });
-
-  String get nombreCompleto => '$nombre $apellidos';
-  String get inicial => nombre[0].toUpperCase();
-
-  // TODO: usar al conectar Django → GET /api/arrendatarios/
-  factory Arrendatario.fromJson(Map<String, dynamic> json) {
-    return Arrendatario(
-      id:               json['id'],
-      nombre:           json['nombre'],
-      apellidos:        json['apellidos'],
-      telefono:         json['telefono'],
-      email:            json['email'],
-      fechaNacimiento:  json['fecha_nacimiento'] != null
-                          ? DateTime.parse(json['fecha_nacimiento'])
-                          : null,
-      folioIne:         json['folio_ine'],
-      fotoUrl:          json['foto'],
-      mascotas:         json['mascotas'],
-      hijos:            json['hijos'],
-      estado:           json['estado'] == 'activo'
-                          ? ArrendatarioEstado.activo
-                          : ArrendatarioEstado.inactivo,
-      createdAt:        DateTime.parse(json['created_at']),
-      updatedAt:        DateTime.parse(json['updated_at']),
-    );
-  }
-}
-
-// ─── DATOS EJEMPLO ────────────────────────────────────────────────────────────
-final List<Arrendatario> _arrendatariosEjemplo = [
-  Arrendatario(
-    id: 1,
-    nombre: 'Juan', apellidos: 'Pérez López',
-    telefono: '55 1234 5678', email: 'juan.perez@email.com',
-    folioIne: 'PELJ901012HDFRZN01',
-    mascotas: false, hijos: true,
-    estado: ArrendatarioEstado.activo,
-    createdAt: DateTime(2023, 1, 1), updatedAt: DateTime(2025, 1, 1),
-    propiedadAsignada: 'Depto 302 - Reforma',
-    statusPago: PagoStatus.al_corriente,
-  ),
-  Arrendatario(
-    id: 2,
-    nombre: 'Maria', apellidos: 'González Ruiz',
-    telefono: '55 8765 4321', email: 'maria.gz@email.com',
-    folioIne: 'GORM850320MDFNZR02',
-    mascotas: true, hijos: false,
-    estado: ArrendatarioEstado.activo,
-    createdAt: DateTime(2023, 3, 15), updatedAt: DateTime(2025, 2, 1),
-    propiedadAsignada: 'Casa Jardines',
-    statusPago: PagoStatus.pendiente,
-  ),
-  Arrendatario(
-    id: 3,
-    nombre: 'Carlos', apellidos: 'Ruiz Mendoza',
-    telefono: '55 1122 3344', email: 'carlos.rm@email.com',
-    folioIne: 'RUMC780915HDFZND03',
-    mascotas: false, hijos: true,
-    estado: ArrendatarioEstado.activo,
-    createdAt: DateTime(2023, 6, 1), updatedAt: DateTime(2025, 1, 15),
-    propiedadAsignada: 'Loft Centro',
-    statusPago: PagoStatus.al_corriente,
-  ),
-  Arrendatario(
-    id: 4,
-    nombre: 'Ana', apellidos: 'López Torres',
-    telefono: '55 9988 7766', email: 'ana.lt@email.com',
-    folioIne: 'LOTA920610MDFPRN04',
-    mascotas: true, hijos: true,
-    estado: ArrendatarioEstado.activo,
-    createdAt: DateTime(2022, 11, 20), updatedAt: DateTime(2025, 3, 1),
-    propiedadAsignada: 'Local 5',
-    statusPago: PagoStatus.atrasado,
-  ),
-];
-
 // ─── PANTALLA ─────────────────────────────────────────────────────────────────
 class InquilinosScreen extends StatefulWidget {
   const InquilinosScreen({super.key});
@@ -205,6 +63,21 @@ class _InquilinosScreenState extends State<InquilinosScreen> {
   final int _navIndex = 2;
   final TextEditingController _searchCtrl = TextEditingController();
   String _searchTerm = '';
+  late Future<List<ArrendatarioItem>> _futuro;
+
+  @override
+  void initState() {
+    super.initState();
+    _futuro = ArrendatariosService.listar();
+  }
+
+  void _recargar() {
+    setState(() {
+      _futuro = ArrendatariosService.listar(
+        busqueda: _searchTerm.isEmpty ? null : _searchTerm,
+      );
+    });
+  }
 
   @override
   void dispose() {
@@ -214,25 +87,9 @@ class _InquilinosScreenState extends State<InquilinosScreen> {
 
   void _onNavTap(int index) {
     const routes = [
-      '/inicio-usuario',
-      '/propiedades',
-      '',
-      '/pagos',
-      '/mantenimiento',
+      '/inicio-usuario', '/propiedades', '', '/pagos', '/mantenimiento',
     ];
-    if (index != _navIndex) {
-      Navigator.pushNamed(context, routes[index]);
-    }
-  }
-
-  List<Arrendatario> get _filtrados {
-    if (_searchTerm.isEmpty) return _arrendatariosEjemplo;
-    final term = _searchTerm.toLowerCase();
-    return _arrendatariosEjemplo.where((a) =>
-        a.nombreCompleto.toLowerCase().contains(term) ||
-        (a.propiedadAsignada?.toLowerCase().contains(term) ?? false) ||
-        a.telefono.contains(term) ||
-        a.email.toLowerCase().contains(term)).toList();
+    if (index != _navIndex) Navigator.pushNamed(context, routes[index]);
   }
 
   @override
@@ -259,7 +116,11 @@ class _InquilinosScreenState extends State<InquilinosScreen> {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: TextField(
               controller: _searchCtrl,
-              onChanged: (v) => setState(() => _searchTerm = v),
+              onSubmitted: (_) => _recargar(),
+              onChanged: (v) {
+                setState(() => _searchTerm = v);
+                if (v.isEmpty) _recargar();
+              },
               style: const TextStyle(
                   color: Color(0xFF225378), fontSize: 14),
               decoration: InputDecoration(
@@ -275,6 +136,7 @@ class _InquilinosScreenState extends State<InquilinosScreen> {
                         onPressed: () {
                           _searchCtrl.clear();
                           setState(() => _searchTerm = '');
+                          _recargar();
                         },
                       )
                     : null,
@@ -299,34 +161,63 @@ class _InquilinosScreenState extends State<InquilinosScreen> {
             ),
           ),
 
-          // ── Lista ─────────────────────────────────────────────────────────
+          // ── Lista con datos reales ─────────────────────────────────────────
           Expanded(
-            child: _filtrados.isEmpty
-                ? const Center(
+            child: FutureBuilder<List<ArrendatarioItem>>(
+              future: _futuro,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(color: Color(0xFF1695A3)),
+                  );
+                }
+                if (snapshot.hasError) {
+                  return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.people_outline,
-                            size: 52, color: Colors.grey),
-                        SizedBox(height: 12),
-                        Text('No se encontraron inquilinos.',
-                            style: TextStyle(
-                                color: Colors.grey, fontSize: 14)),
+                        const Icon(Icons.wifi_off, size: 48, color: Colors.grey),
+                        const SizedBox(height: 12),
+                        Text(snapshot.error.toString(),
+                            style: const TextStyle(color: Colors.grey, fontSize: 13),
+                            textAlign: TextAlign.center),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: _recargar,
+                          child: const Text('Reintentar'),
+                        ),
                       ],
                     ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 80),
-                    itemCount: _filtrados.length,
-                    itemBuilder: (context, index) => _InquilinoCard(
-                      arrendatario: _filtrados[index],
-                      onTap: () => Navigator.pushNamed(
-                        context,
-                        '/inquilinos/info',
-                        arguments: _filtrados[index].id,
-                      ),
+                  );
+                }
+                final lista = snapshot.data ?? [];
+                if (lista.isEmpty) {
+                  return const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.people_outline, size: 52, color: Colors.grey),
+                        SizedBox(height: 12),
+                        Text('No se encontraron inquilinos.',
+                            style: TextStyle(color: Colors.grey, fontSize: 14)),
+                      ],
+                    ),
+                  );
+                }
+                return ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 80),
+                  itemCount: lista.length,
+                  itemBuilder: (context, index) => _InquilinoCard(
+                    arrendatario: lista[index],
+                    onTap: () => Navigator.pushNamed(
+                      context,
+                      '/inquilinos/info',
+                      arguments: lista[index].id,
                     ),
                   ),
+                );
+              },
+            ),
           ),
         ],
       ),
@@ -336,13 +227,10 @@ class _InquilinosScreenState extends State<InquilinosScreen> {
 
 // ─── TARJETA INQUILINO ────────────────────────────────────────────────────────
 class _InquilinoCard extends StatelessWidget {
-  final Arrendatario arrendatario;
+  final ArrendatarioItem arrendatario;
   final VoidCallback onTap;
 
-  const _InquilinoCard({
-    required this.arrendatario,
-    required this.onTap,
-  });
+  const _InquilinoCard({required this.arrendatario, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -369,30 +257,21 @@ class _InquilinoCard extends StatelessWidget {
           children: [
             // ── Avatar ──────────────────────────────────────────────────────
             Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(
-                color: const Color(0xFFACF0F2),
+              width: 50, height: 50,
+              decoration: const BoxDecoration(
+                color: Color(0xFFACF0F2),
                 shape: BoxShape.circle,
-                image: a.fotoUrl != null
-                    ? DecorationImage(
-                        image: NetworkImage(a.fotoUrl!),
-                        fit: BoxFit.cover,
-                      )
-                    : null,
               ),
-              child: a.fotoUrl == null
-                  ? Center(
-                      child: Text(
-                        a.inicial,
-                        style: const TextStyle(
-                          color: Color(0xFF1695A3),
-                          fontWeight: FontWeight.bold,
-                          fontSize: 20,
-                        ),
-                      ),
-                    )
-                  : null,
+              child: Center(
+                child: Text(
+                  a.inicial,
+                  style: const TextStyle(
+                    color: Color(0xFF1695A3),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 20,
+                  ),
+                ),
+              ),
             ),
             const SizedBox(width: 12),
 
@@ -407,39 +286,17 @@ class _InquilinoCard extends StatelessWidget {
                           fontWeight: FontWeight.bold,
                           fontSize: 14)),
                   const SizedBox(height: 2),
-                  Text(
-                    a.propiedadAsignada ?? 'Sin propiedad asignada',
-                    style: const TextStyle(
-                        color: Colors.grey, fontSize: 12),
-                  ),
+                  Text(a.email,
+                      style: const TextStyle(color: Colors.grey, fontSize: 12)),
                   const SizedBox(height: 5),
-
-                  // Badges: status pago + extras
-                  Row(
-                    children: [
-                      if (a.statusPago != null)
-                        _Badge(
-                          label: a.statusPago!.label,
-                          bgColor: a.statusPago!.bgColor,
-                          textColor: a.statusPago!.textColor,
-                        ),
-                      if (a.mascotas) ...[
-                        const SizedBox(width: 5),
-                        _Badge(
-                          label: '🐾 Mascotas',
-                          bgColor: const Color(0xFFF3FFE2),
-                          textColor: Colors.green.shade700,
-                        ),
-                      ],
-                      if (a.hijos) ...[
-                        const SizedBox(width: 5),
-                        _Badge(
-                          label: '👶 Hijos',
-                          bgColor: const Color(0xFFEFF6FF),
-                          textColor: Colors.blue.shade700,
-                        ),
-                      ],
-                    ],
+                  _Badge(
+                    label: a.estado == 'activo' ? 'Activo' : 'Inactivo',
+                    bgColor: a.estado == 'activo'
+                        ? const Color(0xFFDCFCE7)
+                        : const Color(0xFFF1F5F9),
+                    textColor: a.estado == 'activo'
+                        ? const Color(0xFF15803D)
+                        : Colors.grey,
                   ),
                 ],
               ),

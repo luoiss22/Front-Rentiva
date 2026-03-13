@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/widgets/app_header.dart';
 import '../../../core/widgets/bottom_navbar.dart';
+import '../../../data/services/propiedades_service.dart';
 
 // ─── ENUMS según backend Django ───────────────────────────────────────────────
 enum PropiedadTipo { casa, departamento, local, oficina, terreno, otro }
@@ -94,74 +95,6 @@ class Propiedad {
   }
 }
 
-// ─── DATOS DE EJEMPLO (reemplazar con API Django) ─────────────────────────────
-final List<Propiedad> _propiedadesEjemplo = [
-  Propiedad(
-    id: 1,
-    nombre: 'Apartamento Moderno Centro',
-    direccion: 'Av. Reforma 222',
-    ciudad: 'Ciudad de México',
-    estadoGeografico: 'CDMX',
-    codigoPostal: '06600',
-    tipo: PropiedadTipo.departamento,
-    descripcion: 'Departamento moderno en el corazón de la ciudad con vista panorámica.',
-    costoRenta: 12500,
-    superficieM2: 85,
-    estado: PropiedadEstado.rentada,
-    imagen: 'https://images.unsplash.com/photo-1594873604892-b599f847e859?w=600',
-    createdAt: DateTime(2024, 1, 15),
-    updatedAt: DateTime(2025, 3, 1),
-  ),
-  Propiedad(
-    id: 2,
-    nombre: 'Casa Familiar Jardines',
-    direccion: 'Calle Roble 45',
-    ciudad: 'Guadalajara',
-    estadoGeografico: 'Jalisco',
-    codigoPostal: '44100',
-    tipo: PropiedadTipo.casa,
-    descripcion: 'Amplia casa familiar con jardín y garage para dos autos.',
-    costoRenta: 28000,
-    superficieM2: 150,
-    estado: PropiedadEstado.disponible,
-    imagen: 'https://images.unsplash.com/photo-1646877419384-98cbdde02d3a?w=600',
-    createdAt: DateTime(2024, 3, 10),
-    updatedAt: DateTime(2025, 2, 20),
-  ),
-  Propiedad(
-    id: 3,
-    nombre: 'Loft Industrial',
-    direccion: 'Calle 10 #200',
-    ciudad: 'Monterrey',
-    estadoGeografico: 'Nuevo León',
-    codigoPostal: '64000',
-    tipo: PropiedadTipo.local,
-    descripcion: 'Espacio abierto estilo industrial, ideal para oficinas creativas.',
-    costoRenta: 15000,
-    superficieM2: 60,
-    estado: PropiedadEstado.rentada,
-    imagen: 'https://images.unsplash.com/photo-1605610973140-02080d1905ec?w=600',
-    createdAt: DateTime(2024, 6, 5),
-    updatedAt: DateTime(2025, 1, 10),
-  ),
-  Propiedad(
-    id: 4,
-    nombre: 'Oficina Torre Norte',
-    direccion: 'Blvd. Manuel Ávila Camacho 88',
-    ciudad: 'Ciudad de México',
-    estadoGeografico: 'CDMX',
-    codigoPostal: '11560',
-    tipo: PropiedadTipo.oficina,
-    descripcion: 'Oficina corporativa en edificio de primer nivel con estacionamiento.',
-    costoRenta: 35000,
-    superficieM2: 120,
-    estado: PropiedadEstado.mantenimiento,
-    imagen: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=600',
-    createdAt: DateTime(2024, 8, 20),
-    updatedAt: DateTime(2025, 3, 5),
-  ),
-];
-
 // ─── PANTALLA ─────────────────────────────────────────────────────────────────
 class PropiedadesScreen extends StatefulWidget {
   const PropiedadesScreen({super.key});
@@ -171,9 +104,22 @@ class PropiedadesScreen extends StatefulWidget {
 }
 
 class _PropiedadesScreenState extends State<PropiedadesScreen> {
-  final int _navIndex = 1; // Propiedades = índice 1
+  final int _navIndex = 1;
   final TextEditingController _searchCtrl = TextEditingController();
   String _searchTerm = '';
+  late Future<List<PropiedadItem>> _futuro;
+
+  @override
+  void initState() {
+    super.initState();
+    _futuro = PropiedadesService.listar();
+  }
+
+  void _recargar() {
+    setState(() {
+      _futuro = PropiedadesService.listar(busqueda: _searchTerm.isEmpty ? null : _searchTerm);
+    });
+  }
 
   @override
   void dispose() {
@@ -183,26 +129,9 @@ class _PropiedadesScreenState extends State<PropiedadesScreen> {
 
   void _onNavTap(int index) {
     const routes = [
-      '/inicio-usuario',
-      '',
-      '/inquilinos',
-      '/pagos',
-      '/mantenimiento',
+      '/inicio-usuario', '', '/inquilinos', '/pagos', '/mantenimiento',
     ];
-    if (index != _navIndex) {
-      Navigator.pushNamed(context, routes[index]);
-    }
-  }
-
-  List<Propiedad> get _filtradas {
-    if (_searchTerm.isEmpty) return _propiedadesEjemplo;
-    final term = _searchTerm.toLowerCase();
-    return _propiedadesEjemplo
-        .where((p) =>
-            p.nombre.toLowerCase().contains(term) ||
-            p.direccion.toLowerCase().contains(term) ||
-            p.ciudad.toLowerCase().contains(term))
-        .toList();
+    if (index != _navIndex) Navigator.pushNamed(context, routes[index]);
   }
 
   @override
@@ -231,29 +160,30 @@ class _PropiedadesScreenState extends State<PropiedadesScreen> {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: TextField(
               controller: _searchCtrl,
-              onChanged: (v) => setState(() => _searchTerm = v),
-              style: const TextStyle(
-                  color: Color(0xFF225378), fontSize: 14),
+              onSubmitted: (_) => _recargar(),
+              onChanged: (v) {
+                setState(() => _searchTerm = v);
+                if (v.isEmpty) _recargar();
+              },
+              style: const TextStyle(color: Color(0xFF225378), fontSize: 14),
               decoration: InputDecoration(
                 hintText: 'Buscar por nombre o dirección...',
-                hintStyle:
-                    const TextStyle(color: Colors.grey, fontSize: 13),
-                prefixIcon: const Icon(Icons.search,
-                    color: Colors.grey, size: 20),
+                hintStyle: const TextStyle(color: Colors.grey, fontSize: 13),
+                prefixIcon: const Icon(Icons.search, color: Colors.grey, size: 20),
                 suffixIcon: _searchTerm.isNotEmpty
                     ? IconButton(
-                        icon: const Icon(Icons.close,
-                            color: Colors.grey, size: 18),
+                        icon: const Icon(Icons.close, color: Colors.grey, size: 18),
                         onPressed: () {
                           _searchCtrl.clear();
                           setState(() => _searchTerm = '');
+                          _recargar();
                         },
                       )
                     : null,
                 filled: true,
                 fillColor: Colors.white,
-                contentPadding: const EdgeInsets.symmetric(
-                    vertical: 14, horizontal: 16),
+                contentPadding:
+                    const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
                   borderSide: BorderSide.none,
@@ -264,41 +194,72 @@ class _PropiedadesScreenState extends State<PropiedadesScreen> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(
-                      color: Color(0xFF1695A3), width: 2),
+                  borderSide:
+                      const BorderSide(color: Color(0xFF1695A3), width: 2),
                 ),
               ),
             ),
           ),
 
-          // ── Lista ─────────────────────────────────────────────────────────
+          // ── Lista con datos reales ─────────────────────────────────────────
           Expanded(
-            child: _filtradas.isEmpty
-                ? const Center(
+            child: FutureBuilder<List<PropiedadItem>>(
+              future: _futuro,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(color: Color(0xFF1695A3)),
+                  );
+                }
+                if (snapshot.hasError) {
+                  return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.home_work_outlined,
-                            size: 52, color: Colors.grey),
-                        SizedBox(height: 12),
-                        Text('No se encontraron propiedades.',
-                            style: TextStyle(
-                                color: Colors.grey, fontSize: 14)),
+                        const Icon(Icons.wifi_off, size: 48, color: Colors.grey),
+                        const SizedBox(height: 12),
+                        Text(
+                          snapshot.error.toString(),
+                          style: const TextStyle(color: Colors.grey, fontSize: 13),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: _recargar,
+                          child: const Text('Reintentar'),
+                        ),
                       ],
                     ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 80),
-                    itemCount: _filtradas.length,
-                    itemBuilder: (context, index) => _PropiedadCard(
-                      propiedad: _filtradas[index],
-                      onTap: () => Navigator.pushNamed(
-                        context,
-                        '/propiedades/info',
-                        arguments: _filtradas[index].id,
-                      ),
+                  );
+                }
+                final lista = snapshot.data ?? [];
+                if (lista.isEmpty) {
+                  return const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.home_work_outlined, size: 52, color: Colors.grey),
+                        SizedBox(height: 12),
+                        Text('No se encontraron propiedades.',
+                            style: TextStyle(color: Colors.grey, fontSize: 14)),
+                      ],
+                    ),
+                  );
+                }
+                return ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 80),
+                  itemCount: lista.length,
+                  itemBuilder: (context, index) => _PropiedadCard(
+                    propiedad: lista[index],
+                    onTap: () => Navigator.pushNamed(
+                      context,
+                      '/propiedades/info',
+                      arguments: lista[index].id,
                     ),
                   ),
+                );
+              },
+            ),
           ),
         ],
       ),
@@ -317,15 +278,43 @@ String _formatPrice(double price) {
   return result.join();
 }
 
+Color _estadoColor(String estado) {
+  switch (estado) {
+    case 'disponible':    return const Color(0xFF1695A3);
+    case 'rentada':       return const Color(0xFFEB7F00);
+    case 'mantenimiento': return Colors.orange;
+    default:              return Colors.grey;
+  }
+}
+
+String _estadoLabel(String estado) {
+  const labels = {
+    'disponible':    'Disponible',
+    'rentada':       'Rentada',
+    'mantenimiento': 'Mantenimiento',
+    'inactiva':      'Inactiva',
+  };
+  return labels[estado] ?? estado;
+}
+
+String _tipoLabel(String tipo) {
+  const labels = {
+    'casa':         'Casa',
+    'departamento': 'Departamento',
+    'local':        'Local',
+    'oficina':      'Oficina',
+    'terreno':      'Terreno',
+    'otro':         'Otro',
+  };
+  return labels[tipo] ?? tipo;
+}
+
 // ─── TARJETA DE PROPIEDAD ─────────────────────────────────────────────────────
 class _PropiedadCard extends StatelessWidget {
-  final Propiedad propiedad;
+  final PropiedadItem propiedad;
   final VoidCallback onTap;
 
-  const _PropiedadCard({
-    required this.propiedad,
-    required this.onTap,
-  });
+  const _PropiedadCard({required this.propiedad, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -357,9 +346,9 @@ class _PropiedadCard extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    // Imagen de red
+                    // Imagen con fallback
                     Image.network(
-                      propiedad.imagen,
+                      propiedad.fotoPrincipal ?? '',
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => Container(
                         color: const Color(0xFFACF0F2).withOpacity(0.3),
@@ -386,11 +375,11 @@ class _PropiedadCard extends StatelessWidget {
                           ],
                         ),
                         child: Text(
-                          propiedad.estado.label,
+                          _estadoLabel(propiedad.estado),
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
-                            color: propiedad.estado.color,
+                            color: _estadoColor(propiedad.estado),
                           ),
                         ),
                       ),
@@ -465,17 +454,13 @@ class _PropiedadCard extends StatelessWidget {
                     children: [
                       _Feature(
                           icon: Icons.home_outlined,
-                          label: propiedad.tipo.label),
+                          label: _tipoLabel(propiedad.tipo)),
                       const SizedBox(width: 12),
                       Expanded(
                         child: _Feature(
                             icon: Icons.location_city_outlined,
                             label: propiedad.ciudad),
                       ),
-                      if (propiedad.superficieM2 != null)
-                        _Feature(
-                            icon: Icons.straighten,
-                            label: '${propiedad.superficieM2!.toStringAsFixed(0)} m²'),
                     ],
                   ),
                   const SizedBox(height: 8),
@@ -498,8 +483,7 @@ class _PropiedadCard extends StatelessWidget {
                             ),
                             const TextSpan(
                               text: ' /mes',
-                              style: TextStyle(
-                                  color: Colors.grey, fontSize: 12),
+                              style: TextStyle(color: Colors.grey, fontSize: 12),
                             ),
                           ],
                         ),
@@ -508,17 +492,17 @@ class _PropiedadCard extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: propiedad.estado.color.withOpacity(0.1),
+                          color: _estadoColor(propiedad.estado).withOpacity(0.1),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                              color: propiedad.estado.color.withOpacity(0.4)),
+                              color: _estadoColor(propiedad.estado).withOpacity(0.4)),
                         ),
                         child: Text(
-                          propiedad.estado.label,
+                          _estadoLabel(propiedad.estado),
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
-                            color: propiedad.estado.color,
+                            color: _estadoColor(propiedad.estado),
                           ),
                         ),
                       ),
