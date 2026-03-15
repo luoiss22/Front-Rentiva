@@ -1,56 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../../core/services/api_client.dart';
 import '../../../core/widgets/app_header.dart';
+import '../../../data/services/mantenimiento_service.dart';
+import '../../../data/services/propiedades_service.dart';
 
-// ─── MOCK ESPECIALISTAS (TODO: GET /api/especialistas/?disponible=true&especialidad=X) ──
-class _Especialista {
-  final int id;
-  final String nombre;
-  final String especialidad;
-  final String telefono;
-  final double calificacion;
-  final int aniosExperiencia;
-  final bool disponible;
-
-  const _Especialista({
-    required this.id,
-    required this.nombre,
-    required this.especialidad,
-    required this.telefono,
-    required this.calificacion,
-    required this.aniosExperiencia,
-    required this.disponible,
-  });
-}
-
-const Map<String, List<_Especialista>> _especialistasPorTipo = {
-  'Fontanero': [
-    _Especialista(id: 1, nombre: 'Mario Ríos',      especialidad: 'Fontanero',     telefono: '55 1234 5678', calificacion: 4.8, aniosExperiencia: 5,  disponible: true),
-    _Especialista(id: 2, nombre: 'Luigi Verdi',     especialidad: 'Fontanero',     telefono: '55 8765 4321', calificacion: 4.5, aniosExperiencia: 3,  disponible: true),
-  ],
-  'Electricista': [
-    _Especialista(id: 3, nombre: 'Tesla Electrónica', especialidad: 'Electricista', telefono: '55 9988 7766', calificacion: 4.9, aniosExperiencia: 10, disponible: true),
-    _Especialista(id: 4, nombre: 'Voltaje Seguro',  especialidad: 'Electricista', telefono: '55 5544 3322', calificacion: 4.2, aniosExperiencia: 2,  disponible: false),
-  ],
-  'Cerrajero': [
-    _Especialista(id: 5, nombre: 'Llaves Rápidas',  especialidad: 'Cerrajero',    telefono: '55 6677 8899', calificacion: 4.7, aniosExperiencia: 8,  disponible: true),
-  ],
-  'Pintor': [
-    _Especialista(id: 6, nombre: 'Pinturas Herrera', especialidad: 'Pintor',       telefono: '55 3344 5566', calificacion: 4.3, aniosExperiencia: 6,  disponible: true),
-  ],
-  'Carpintero': [
-    _Especialista(id: 7, nombre: 'Maderas Fino',    especialidad: 'Carpintero',   telefono: '55 7788 9900', calificacion: 4.6, aniosExperiencia: 9,  disponible: true),
-  ],
-  'Albañil': [
-    _Especialista(id: 8, nombre: 'Concretos Ramos', especialidad: 'Albañil',      telefono: '55 2211 3300', calificacion: 4.1, aniosExperiencia: 7,  disponible: true),
-  ],
-  'HVAC': [
-    _Especialista(id: 9, nombre: 'Clima Pro',       especialidad: 'HVAC',         telefono: '55 4455 6677', calificacion: 4.9, aniosExperiencia: 11, disponible: true),
-  ],
-  'Otro': [
-    _Especialista(id: 10, nombre: 'Reparaciones Gral.', especialidad: 'General',  telefono: '55 1122 3344', calificacion: 4.0, aniosExperiencia: 1,  disponible: true),
-  ],
-};
+// (especialistas mock eliminados — ahora se cargan desde el API)
 
 // ─── PANTALLA ─────────────────────────────────────────────────────────────────
 class NuevoReporteScreen extends StatefulWidget {
@@ -71,13 +26,13 @@ class _NuevoReporteScreenState extends State<NuevoReporteScreen> {
   String  _estado           = 'abierto';
   int?    _propiedadId;
   int?    _especialistaId;
+  bool    _submitting = false;
 
-  // TODO: GET /api/propiedades/
-  final List<Map<String, dynamic>> _propiedades = [
-    {'id': 1, 'nombre': 'Depto 302 - Reforma'},
-    {'id': 2, 'nombre': 'Casa Jardines'},
-    {'id': 3, 'nombre': 'Local 5'},
-  ];
+  // Datos cargados del API
+  List<Map<String, dynamic>> _propiedades = [];
+  List<EspecialistaItem> _especialistasCargados = [];
+  bool _loadingPropiedades = true;
+  bool _loadingEspecialistas = false;
 
   static const List<String> _tiposRapidos = [
     'Fontanero', 'Electricista', 'Cerrajero',
@@ -91,13 +46,45 @@ class _NuevoReporteScreenState extends State<NuevoReporteScreen> {
     {'value': 'urgente', 'label': 'Urgente', 'color': Color(0xFF7C3AED), 'icon': Icons.bolt_outlined},
   ];
 
-  List<_Especialista> get _especialistasSugeridos =>
-      _tipoEspecialista.isEmpty ? [] : (_especialistasPorTipo[_tipoEspecialista] ?? []);
+  List<EspecialistaItem> get _especialistasSugeridos =>
+      _tipoEspecialista.isEmpty ? [] : _especialistasCargados;
 
   bool get _puedeEnviar =>
       _descripcionCtrl.text.isNotEmpty &&
       _tipoEspecialista.isNotEmpty &&
-      _propiedadId != null;
+      _propiedadId != null &&
+      !_submitting;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarPropiedades();
+  }
+
+  Future<void> _cargarPropiedades() async {
+    try {
+      final items = await PropiedadesService.listar();
+      setState(() {
+        _propiedades = items.map((p) => {'id': p.id, 'nombre': p.nombre}).toList();
+        _loadingPropiedades = false;
+      });
+    } catch (_) {
+      setState(() => _loadingPropiedades = false);
+    }
+  }
+
+  Future<void> _cargarEspecialistas(String tipo) async {
+    setState(() => _loadingEspecialistas = true);
+    try {
+      final items = await EspecialistasService.listar(especialidad: tipo);
+      setState(() {
+        _especialistasCargados = items;
+        _loadingEspecialistas = false;
+      });
+    } catch (_) {
+      setState(() { _especialistasCargados = []; _loadingEspecialistas = false; });
+    }
+  }
 
   @override
   void dispose() {
@@ -106,7 +93,7 @@ class _NuevoReporteScreenState extends State<NuevoReporteScreen> {
     super.dispose();
   }
 
-  void _onSubmit() {
+  void _onSubmit() async {
     if (_formKey.currentState!.validate()) {
       if (_propiedadId == null) {
         _snack('Selecciona la propiedad afectada', Colors.red);
@@ -117,7 +104,8 @@ class _NuevoReporteScreenState extends State<NuevoReporteScreen> {
         return;
       }
 
-      // TODO: POST /api/mantenimiento/
+      setState(() => _submitting = true);
+
       final data = {
         'propiedad':         _propiedadId,
         'descripcion':       _descripcionCtrl.text,
@@ -128,10 +116,20 @@ class _NuevoReporteScreenState extends State<NuevoReporteScreen> {
             ? null : _costoEstimadoCtrl.text,
         'especialista':      _especialistaId,
       };
-      debugPrint('POST /api/mantenimiento/ $data');
 
-      _snack('Reporte creado correctamente', const Color(0xFF1695A3));
-      Navigator.pop(context);
+      try {
+        await ReportesMantenimientoService.crear(data);
+        if (mounted) {
+          _snack('Reporte creado correctamente', const Color(0xFF1695A3));
+          Navigator.pop(context);
+        }
+      } on ApiException catch (e) {
+        if (mounted) _snack(e.message, Colors.red);
+      } catch (_) {
+        if (mounted) _snack('Error de conexión', Colors.red);
+      } finally {
+        if (mounted) setState(() => _submitting = false);
+      }
     }
   }
 
@@ -216,10 +214,13 @@ class _NuevoReporteScreenState extends State<NuevoReporteScreen> {
                   children: _tiposRapidos.map((tipo) {
                     final sel = _tipoEspecialista == tipo;
                     return GestureDetector(
-                      onTap: () => setState(() {
-                        _tipoEspecialista = tipo;
-                        _especialistaId = null; // reset selección
-                      }),
+                      onTap: () {
+                        setState(() {
+                          _tipoEspecialista = tipo;
+                          _especialistaId = null;
+                        });
+                        _cargarEspecialistas(tipo);
+                      },
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 140),
                         padding: const EdgeInsets.symmetric(
@@ -409,7 +410,7 @@ class _NuevoReporteScreenState extends State<NuevoReporteScreen> {
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: Colors.grey.shade100),
               ),
-              child: Text('${lista.length} encontrados',
+              child: Text(_loadingEspecialistas ? 'Cargando...' : '${lista.length} encontrados',
                   style: const TextStyle(
                       color: Colors.grey,
                       fontSize: 10,
@@ -418,15 +419,24 @@ class _NuevoReporteScreenState extends State<NuevoReporteScreen> {
           ],
         ),
         const SizedBox(height: 10),
-        ...lista.map((esp) => _EspecialistaCard(
-              especialista: esp,
-              isSelected: _especialistaId == esp.id,
-              onSelect: () => setState(() => _especialistaId =
-                  _especialistaId == esp.id ? null : esp.id),
-              onCall: () {
-                // TODO: launch tel:${esp.telefono}
-              },
-            )),
+        if (_loadingEspecialistas)
+          const Center(child: Padding(
+            padding: EdgeInsets.all(20),
+            child: CircularProgressIndicator(color: Color(0xFF1695A3), strokeWidth: 2),
+          ))
+        else if (lista.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Center(child: Text('No se encontraron especialistas',
+                style: TextStyle(color: Colors.grey, fontSize: 12))),
+          )
+        else
+          ...lista.map((esp) => _EspecialistaCard(
+                especialista: esp,
+                isSelected: _especialistaId == esp.id,
+                onSelect: () => setState(() => _especialistaId =
+                    _especialistaId == esp.id ? null : esp.id),
+              )),
       ],
     );
   }
@@ -543,16 +553,14 @@ class _NuevoReporteScreenState extends State<NuevoReporteScreen> {
 
 // ─── CARD ESPECIALISTA ────────────────────────────────────────────────────────
 class _EspecialistaCard extends StatelessWidget {
-  final _Especialista especialista;
+  final EspecialistaItem especialista;
   final bool isSelected;
   final VoidCallback onSelect;
-  final VoidCallback onCall;
 
   const _EspecialistaCard({
     required this.especialista,
     required this.isSelected,
     required this.onSelect,
-    required this.onCall,
   });
 
   @override
@@ -621,7 +629,7 @@ class _EspecialistaCard extends StatelessWidget {
                           color: Color(0xFF225378),
                           fontWeight: FontWeight.bold,
                           fontSize: 13)),
-                  Text('${especialista.aniosExperiencia} años de experiencia',
+                  Text(especialista.especialidad,
                       style: const TextStyle(
                           color: Colors.grey, fontSize: 11)),
                   const SizedBox(height: 4),
@@ -661,24 +669,8 @@ class _EspecialistaCard extends StatelessWidget {
             // Acciones
             Column(
               children: [
-                // Llamar
-                GestureDetector(
-                  onTap: onCall,
-                  child: Container(
-                    padding: const EdgeInsets.all(9),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                          color: const Color(0xFF1695A3).withOpacity(0.3)),
-                    ),
-                    child: const Icon(Icons.phone_outlined,
-                        color: Color(0xFF1695A3), size: 16),
-                  ),
-                ),
                 // Check seleccionado
                 if (isSelected) ...[
-                  const SizedBox(height: 6),
                   Container(
                     padding: const EdgeInsets.all(9),
                     decoration: const BoxDecoration(

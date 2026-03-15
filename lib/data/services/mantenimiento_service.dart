@@ -187,6 +187,23 @@ class EspecialistasService {
     final data = await ApiClient.get('/especialistas/$id/');
     return EspecialistaDetalle.fromJson(data);
   }
+
+  /// POST /especialistas/
+  static Future<EspecialistaDetalle> crear(Map<String, dynamic> body) async {
+    final data = await ApiClient.post('/especialistas/', body);
+    return EspecialistaDetalle.fromJson(data);
+  }
+
+  /// PATCH /especialistas/{id}/
+  static Future<EspecialistaDetalle> actualizar(int id, Map<String, dynamic> body) async {
+    final data = await ApiClient.patch('/especialistas/$id/', body);
+    return EspecialistaDetalle.fromJson(data);
+  }
+
+  /// DELETE /especialistas/{id}/
+  static Future<void> eliminar(int id) async {
+    await ApiClient.delete('/especialistas/$id/');
+  }
 }
 
 class ReportesMantenimientoService {

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import '../../../core/services/api_client.dart';
 import '../../../core/widgets/app_header.dart';
 import '../../../core/widgets/bottom_navbar.dart';
 import '../widgets/pago_models.dart';
-import '../widgets/pago_data.dart';
 import '../widgets/pago_tile.dart';
 import '../widgets/detalle_pago_sheet.dart';
 import '../widgets/pago_action_btn.dart';
@@ -20,7 +20,31 @@ class PagosScreen extends StatefulWidget {
 class _PagosScreenState extends State<PagosScreen> {
   final int _navIndex = 3;
   String _filtro = 'todos';
-  late final List<Pago> _pagos = List.of(pagosEjemplo);
+  List<Pago> _pagos = [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarPagos();
+  }
+
+  Future<void> _cargarPagos() async {
+    setState(() { _loading = true; _error = null; });
+    try {
+      final data = await ApiClient.get('/pagos/');
+      final results = data['results'] as List;
+      setState(() {
+        _pagos = results.map((e) => Pago.fromJson(e)).toList();
+        _loading = false;
+      });
+    } on ApiException catch (e) {
+      setState(() { _error = e.message; _loading = false; });
+    } catch (e) {
+      setState(() { _error = 'Error de conexión'; _loading = false; });
+    }
+  }
 
   static const List<Map<String, String>> _filtros = [
     {'value': 'todos',      'label': 'Todos'},
@@ -63,7 +87,18 @@ class _PagosScreenState extends State<PagosScreen> {
       appBar: const AppHeader(title: 'Pagos y Facturas'),
       bottomNavigationBar:
           BottomNavBar(currentIndex: _navIndex, onTap: _onNavTap),
-      body: CustomScrollView(
+      body: _loading
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF1695A3)))
+          : _error != null
+              ? Center(child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(_error!, style: const TextStyle(color: Colors.red)),
+                    const SizedBox(height: 12),
+                    ElevatedButton(onPressed: _cargarPagos, child: const Text('Reintentar')),
+                  ],
+                ))
+              : CustomScrollView(
         slivers: [
           SliverToBoxAdapter(
             child: Column(
@@ -272,7 +307,7 @@ class _PagosScreenState extends State<PagosScreen> {
             ),
           ),
         ],
-      ),
+      ),  // CustomScrollView end
     );
   }
 
@@ -294,22 +329,30 @@ class _PagosScreenState extends State<PagosScreen> {
   }
 
   // ── MARCAR COMO RECIBIDO ──────────────────────────────────────────────────
-  void _marcarComoRecibido(Pago pago) {
-    setState(() {
-      final idx = _pagos.indexWhere((p) => p.id == pago.id);
-      if (idx != -1) {
-        _pagos[idx] = pago.copyWith(
-          estado: PagoEstado.pagado,
-          fechaPago: DateTime.now(),
-        );
+  void _marcarComoRecibido(Pago pago) async {
+    try {
+      await ApiClient.patch('/pagos/${pago.id}/', {
+        'estado': 'pagado',
+        'fecha_pago': DateTime.now().toIso8601String().split('T').first,
+      });
+      await _cargarPagos();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Pago de ${pago.inquilinoNombre} marcado como recibido'),
+          backgroundColor: const Color(0xFF15803D),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ));
       }
-    });
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('Pago de ${pago.inquilinoNombre} marcado como recibido'),
-      backgroundColor: const Color(0xFF15803D),
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-    ));
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(e.message),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    }
   }
 
   // ── DIÁLOGO GENERAR FACTURA ───────────────────────────────────────────────

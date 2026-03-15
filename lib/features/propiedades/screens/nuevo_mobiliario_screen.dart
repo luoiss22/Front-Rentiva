@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../../core/widgets/app_header.dart';
+import '../../../data/services/mobiliario_service.dart';
 
 class NuevoMobiliarioScreen extends StatefulWidget {
   final int? propiedadId;
@@ -68,7 +69,7 @@ class _NuevoMobiliarioScreenState extends State<NuevoMobiliarioScreen> {
     }
   }
 
-  void _onSubmit() {
+  void _onSubmit() async {
     if (_formKey.currentState!.validate()) {
       if (_estadoSeleccionado == null) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -81,30 +82,44 @@ class _NuevoMobiliarioScreenState extends State<NuevoMobiliarioScreen> {
         return;
       }
 
-      // TODO: POST /api/mobiliario/  y  POST /api/propiedades/{id}/mobiliario/
-      final mobiliarioData = {
-        'nombre':      _nombreCtrl.text,
-        'tipo':        _tipoCtrl.text,
-        'descripcion': _descripcionCtrl.text,
-        // foto: _imageFile / _webImage
-      };
-      final propiedadMobiliarioData = {
-        'propiedad':       widget.propiedadId,
-        'cantidad':        _cantidadCtrl.text,
-        'valor_estimado':  _valorEstimadoCtrl.text,
-        'estado':          _estadoSeleccionado,
-      };
-      debugPrint('Mobiliario: $mobiliarioData');
-      debugPrint('PropiedadMobiliario: $propiedadMobiliarioData');
+      try {
+        // 1) Crear el artículo en el catálogo de mobiliario
+        final mob = await MobiliarioService.crear({
+          'nombre':      _nombreCtrl.text,
+          'tipo':        _tipoCtrl.text,
+          'descripcion': _descripcionCtrl.text,
+        });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Mobiliario agregado correctamente'),
-          backgroundColor: Color(0xFF1695A3),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      Navigator.pop(context);
+        // 2) Asociarlo a la propiedad
+        await PropiedadMobiliarioService.crear({
+          'propiedad':      widget.propiedadId,
+          'mobiliario':     mob.id,
+          'cantidad':       int.tryParse(_cantidadCtrl.text) ?? 1,
+          'valor_estimado': _valorEstimadoCtrl.text.isEmpty
+              ? null
+              : _valorEstimadoCtrl.text,
+          'estado':         _estadoSeleccionado,
+        });
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Mobiliario agregado correctamente'),
+            backgroundColor: Color(0xFF1695A3),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        Navigator.pop(context, true);
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 

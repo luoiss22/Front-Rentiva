@@ -423,7 +423,7 @@ class _PropiedadCard extends StatelessWidget {
                                 const SizedBox(width: 3),
                                 Expanded(
                                   child: Text(
-                                    propiedad.direccion,
+                                    '${propiedad.ciudad}, ${propiedad.estadoGeografico}',
                                     style: const TextStyle(
                                       color: Colors.white70,
                                       fontSize: 11,

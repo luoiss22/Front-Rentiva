@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:url_launcher/url_launcher.dart';
+import '../../../core/services/api_client.dart';
+import '../../../data/services/mantenimiento_service.dart';
 import '../../../core/widgets/app_header.dart';
 import '../../../core/widgets/bottom_navbar.dart';
 
@@ -128,6 +130,21 @@ class Especialista {
     required this.aniosExperiencia,
     required this.disponible,
   });
+
+  factory Especialista.fromJson(Map<String, dynamic> json) {
+    return Especialista(
+      id: json['id'] as int,
+      nombre: json['nombre'] ?? '',
+      especialidad: json['especialidad'] ?? '',
+      telefono: json['telefono'] ?? '',
+      email: json['email'] ?? '',
+      ciudad: json['ciudad'] ?? '',
+      estadoGeografico: json['estado_geografico'] ?? '',
+      calificacion: double.tryParse(json['calificacion'].toString()) ?? 0,
+      aniosExperiencia: json['anios_experiencia'] ?? 0,
+      disponible: json['disponible'] ?? true,
+    );
+  }
 }
 
 class ResenaEspecialista {
@@ -187,76 +204,7 @@ class ReporteMantenimiento {
   }
 }
 
-// ─── DATOS EJEMPLO ────────────────────────────────────────────────────────────
-final List<ReporteMantenimiento> _reportesEjemplo = [
-  ReporteMantenimiento(
-    id: 1,
-    descripcion: 'Fuga de agua en baño principal, mancha en techo del departamento de abajo.',
-    tipoEspecialista: 'Fontanero',
-    prioridad: ReportePrioridad.alta,
-    estado: ReporteEstado.abierto,
-    costoEstimado: 1500,
-    createdAt: DateTime.now(),
-    updatedAt: DateTime.now(),
-    propiedadNombre: 'Depto 302 - Reforma',
-  ),
-  ReporteMantenimiento(
-    id: 2,
-    descripcion: 'Cambio de chapa y llave maestra en puerta principal.',
-    tipoEspecialista: 'Cerrajero',
-    prioridad: ReportePrioridad.media,
-    estado: ReporteEstado.en_proceso,
-    costoEstimado: 800,
-    createdAt: DateTime.now().subtract(const Duration(days: 1)),
-    updatedAt: DateTime.now().subtract(const Duration(hours: 3)),
-    propiedadNombre: 'Casa Jardines',
-    especialista: const Especialista(
-      id: 1, nombre: 'Roberto Sánchez',
-      especialidad: 'Cerrajería',
-      telefono: '55 9876 5432',
-      email: 'roberto@cerrajeros.mx',
-      ciudad: 'CDMX', estadoGeografico: 'CDMX',
-      calificacion: 4.8, aniosExperiencia: 12, disponible: true,
-    ),
-    resenas: [
-      ResenaEspecialista(
-        id: 1, calificacion: 5,
-        comentario: 'Muy puntual y profesional.',
-        createdAt: DateTime.now().subtract(const Duration(days: 1)),
-      ),
-    ],
-  ),
-  ReporteMantenimiento(
-    id: 3,
-    descripcion: 'Revisión del tablero eléctrico, cortos en área de cocina.',
-    tipoEspecialista: 'Electricista',
-    prioridad: ReportePrioridad.baja,
-    estado: ReporteEstado.resuelto,
-    costoEstimado: 2200, costoFinal: 1950,
-    fechaResolucion: DateTime.now().subtract(const Duration(days: 3)),
-    createdAt: DateTime.now().subtract(const Duration(days: 6)),
-    updatedAt: DateTime.now().subtract(const Duration(days: 3)),
-    propiedadNombre: 'Local 5',
-    especialista: const Especialista(
-      id: 2, nombre: 'Ing. Luis Morales',
-      especialidad: 'Electricidad',
-      telefono: '55 1122 3344',
-      email: 'luis.morales@elec.mx',
-      ciudad: 'CDMX', estadoGeografico: 'CDMX',
-      calificacion: 4.5, aniosExperiencia: 8, disponible: false,
-    ),
-  ),
-  ReporteMantenimiento(
-    id: 4,
-    descripcion: 'Pintura de fachada exterior deteriorada por lluvia.',
-    tipoEspecialista: 'Pintor',
-    prioridad: ReportePrioridad.urgente,
-    estado: ReporteEstado.abierto,
-    createdAt: DateTime.now().subtract(const Duration(hours: 2)),
-    updatedAt: DateTime.now().subtract(const Duration(hours: 2)),
-    propiedadNombre: 'Casa Jardines',
-  ),
-];
+// (datos mock eliminados — ahora se cargan desde el API)
 
 // ─── PANTALLA ─────────────────────────────────────────────────────────────────
 class MantenimientoScreen extends StatefulWidget {
@@ -269,6 +217,95 @@ class MantenimientoScreen extends StatefulWidget {
 class _MantenimientoScreenState extends State<MantenimientoScreen> {
   final int _navIndex = 4;
   String _filtro = 'todos';
+
+  List<ReporteMantenimiento> _reportes = [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarReportes();
+  }
+
+  Future<void> _cargarReportes() async {
+    setState(() { _loading = true; _error = null; });
+    try {
+      // Cargar propiedades para mapear id → nombre
+      Map<int, String> propMap = {};
+      try {
+        final propData = await ApiClient.get('/propiedades/');
+        final propResults = propData['results'] as List;
+        for (final p in propResults) {
+          propMap[p['id'] as int] = p['nombre'] ?? 'Propiedad #${p['id']}';
+        }
+      } catch (_) {}
+
+      final items = await ReportesMantenimientoService.listar();
+      final List<ReporteMantenimiento> lista = [];
+      for (final item in items) {
+        try {
+          final det = await ReportesMantenimientoService.detalle(item.id);
+          Especialista? esp;
+          if (det.especialistaId != null) {
+            try {
+              final espDet = await EspecialistasService.detalle(det.especialistaId!);
+              esp = Especialista(
+                id: espDet.id,
+                nombre: espDet.nombre,
+                especialidad: espDet.especialidad,
+                telefono: espDet.telefono,
+                email: espDet.email,
+                ciudad: espDet.ciudad,
+                estadoGeografico: espDet.estadoGeografico,
+                calificacion: espDet.calificacion,
+                aniosExperiencia: espDet.aniosExperiencia,
+                disponible: espDet.disponible,
+              );
+            } catch (_) {}
+          }
+
+          final resenas = (det.resenas).map<ResenaEspecialista>((r) {
+            return ResenaEspecialista(
+              id: r['id'] ?? 0,
+              calificacion: r['calificacion'] ?? 0,
+              comentario: r['comentario'] ?? '',
+              createdAt: DateTime.tryParse(r['created_at'] ?? '') ?? DateTime.now(),
+            );
+          }).toList();
+
+          lista.add(ReporteMantenimiento(
+            id: det.id,
+            descripcion: det.descripcion,
+            tipoEspecialista: det.tipoEspecialista,
+            prioridad: ReportePrioridad.values.firstWhere(
+              (p) => p.name == det.prioridad,
+              orElse: () => ReportePrioridad.media,
+            ),
+            estado: ReporteEstado.values.firstWhere(
+              (e) => e.name == det.estado,
+              orElse: () => ReporteEstado.abierto,
+            ),
+            costoEstimado: det.costoEstimado,
+            costoFinal: det.costoFinal,
+            fechaResolucion: det.fechaResolucion != null
+                ? DateTime.tryParse(det.fechaResolucion!)
+                : null,
+            createdAt: DateTime.tryParse(det.createdAt) ?? DateTime.now(),
+            updatedAt: DateTime.tryParse(det.updatedAt) ?? DateTime.now(),
+            propiedadNombre: propMap[det.propiedadId] ?? 'Propiedad #${det.propiedadId}',
+            especialista: esp,
+            resenas: resenas,
+          ));
+        } catch (_) {}
+      }
+      setState(() { _reportes = lista; _loading = false; });
+    } on ApiException catch (e) {
+      setState(() { _error = e.message; _loading = false; });
+    } catch (e) {
+      setState(() { _error = 'Error de conexión'; _loading = false; });
+    }
+  }
 
   static const List<Map<String, String>> _filtros = [
     {'value': 'todos',      'label': 'Todos'},
@@ -285,12 +322,12 @@ class _MantenimientoScreenState extends State<MantenimientoScreen> {
   }
 
   List<ReporteMantenimiento> get _filtrados {
-    if (_filtro == 'todos') return _reportesEjemplo;
-    return _reportesEjemplo.where((r) => r.estado.name == _filtro).toList();
+    if (_filtro == 'todos') return _reportes;
+    return _reportes.where((r) => r.estado.name == _filtro).toList();
   }
 
   int _count(ReporteEstado e) =>
-      _reportesEjemplo.where((r) => r.estado == e).length;
+      _reportes.where((r) => r.estado == e).length;
 
   @override
   Widget build(BuildContext context) {
@@ -309,7 +346,18 @@ class _MantenimientoScreenState extends State<MantenimientoScreen> {
                 color: Colors.white, fontWeight: FontWeight.bold)),
         elevation: 4,
       ),
-      body: Column(
+      body: _loading
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF1695A3)))
+          : _error != null
+              ? Center(child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(_error!, style: const TextStyle(color: Colors.red)),
+                    const SizedBox(height: 12),
+                    ElevatedButton(onPressed: _cargarReportes, child: const Text('Reintentar')),
+                  ],
+                ))
+              : Column(
         children: [
           // ── Stats ─────────────────────────────────────────────────────────
           Padding(
@@ -418,7 +466,7 @@ class _MantenimientoScreenState extends State<MantenimientoScreen> {
                   ),
           ),
         ],
-      ),
+      ),  // end Column / end ternary
     );
   }
 
@@ -847,17 +895,41 @@ class _DetalleReporteSheetState extends State<_DetalleReporteSheet> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () {
-                        // TODO: POST /api/mantenimiento/{id}/resena/
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content:
-                                Text('Reseña enviada correctamente'),
-                            backgroundColor: Color(0xFF1695A3),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
+                      onPressed: () async {
+                        try {
+                          await ResenasService.crear({
+                            'especialista': r.especialista!.id,
+                            'reporte': r.id,
+                            'calificacion': _resenaCalif,
+                            'comentario': '',
+                          });
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Reseña enviada correctamente'),
+                                backgroundColor: Color(0xFF1695A3),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          }
+                        } on ApiException catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                              content: Text(e.message),
+                              backgroundColor: Colors.red,
+                              behavior: SnackBarBehavior.floating,
+                            ));
+                          }
+                        } catch (_) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                              content: Text('Error al enviar reseña'),
+                              backgroundColor: Colors.red,
+                              behavior: SnackBarBehavior.floating,
+                            ));
+                          }
+                        }
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFFEB7F00),

@@ -4,68 +4,7 @@ import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../../core/widgets/app_header.dart';
-
-// ─── DATOS EJEMPLO (reemplazar con GET /api/propiedades/{id}/mobiliario/{mobId}/) ──
-class _MobiliarioEditData {
-  final int id;
-  final String nombre;
-  final String tipo;
-  final String descripcion;
-  final String? fotoUrl;
-  final int cantidad;
-  final double? valorEstimado;
-  final String estado;
-
-  const _MobiliarioEditData({
-    required this.id,
-    required this.nombre,
-    required this.tipo,
-    required this.descripcion,
-    this.fotoUrl,
-    required this.cantidad,
-    this.valorEstimado,
-    required this.estado,
-  });
-}
-
-final _mockData = <int, _MobiliarioEditData>{
-  1: const _MobiliarioEditData(
-    id: 1,
-    nombre: 'Sofá cama gris',
-    tipo: 'Mueble',
-    descripcion: 'Modelo KIVIK, 3 plazas, funda lavable',
-    cantidad: 1,
-    valorEstimado: 8500,
-    estado: 'bueno',
-  ),
-  2: const _MobiliarioEditData(
-    id: 2,
-    nombre: 'Mesa de centro cristal',
-    tipo: 'Mueble',
-    descripcion: 'Vidrio templado, patas de madera',
-    cantidad: 1,
-    valorEstimado: 2200,
-    estado: 'regular',
-  ),
-  3: const _MobiliarioEditData(
-    id: 3,
-    nombre: 'Refrigerador Samsung',
-    tipo: 'Electrodoméstico',
-    descripcion: 'Inverter, 11 pies, color plata',
-    cantidad: 1,
-    valorEstimado: 12000,
-    estado: 'bueno',
-  ),
-  4: const _MobiliarioEditData(
-    id: 4,
-    nombre: 'Lavadora LG',
-    tipo: 'Electrodoméstico',
-    descripcion: 'Carga frontal, 18kg',
-    cantidad: 1,
-    valorEstimado: 10500,
-    estado: 'bueno',
-  ),
-};
+import '../../../data/services/mobiliario_service.dart';
 
 // ─── PANTALLA ─────────────────────────────────────────────────────────────────
 class EditarMobiliarioScreen extends StatefulWidget {
@@ -92,7 +31,6 @@ class _EditarMobiliarioScreenState extends State<EditarMobiliarioScreen> {
   // Imagen
   File? _imageFile;
   Uint8List? _webImage;
-  bool _imagenCambiada = false;
 
   // Controladores
   late TextEditingController _nombreCtrl;
@@ -102,7 +40,7 @@ class _EditarMobiliarioScreenState extends State<EditarMobiliarioScreen> {
   late TextEditingController _valorEstimadoCtrl;
 
   String? _estadoSeleccionado;
-  _MobiliarioEditData? _itemActual;
+  bool _cargando = true;
 
   static const List<Map<String, dynamic>> _estados = [
     {'value': 'bueno',      'label': 'Bueno',         'color': Color(0xFF1695A3)},
@@ -114,18 +52,42 @@ class _EditarMobiliarioScreenState extends State<EditarMobiliarioScreen> {
   @override
   void initState() {
     super.initState();
-    // TODO: cargar desde Django → GET /api/propiedades/{propId}/mobiliario/{id}/
-    _itemActual = _mockData[widget.propiedadMobiliarioId] ??
-        _mockData.values.first;
+    _nombreCtrl        = TextEditingController();
+    _tipoCtrl          = TextEditingController();
+    _descripcionCtrl   = TextEditingController();
+    _cantidadCtrl      = TextEditingController();
+    _valorEstimadoCtrl = TextEditingController();
+    _cargarDatos();
+  }
 
-    _nombreCtrl       = TextEditingController(text: _itemActual!.nombre);
-    _tipoCtrl         = TextEditingController(text: _itemActual!.tipo);
-    _descripcionCtrl  = TextEditingController(text: _itemActual!.descripcion);
-    _cantidadCtrl     = TextEditingController(
-        text: _itemActual!.cantidad.toString());
-    _valorEstimadoCtrl = TextEditingController(
-        text: _itemActual!.valorEstimado?.toString() ?? '');
-    _estadoSeleccionado = _itemActual!.estado;
+  Future<void> _cargarDatos() async {
+    try {
+      final pm = await PropiedadMobiliarioService.detalle(
+        widget.propiedadMobiliarioId!,
+      );
+      final mob = await MobiliarioService.detalle(pm.mobiliario);
+      if (!mounted) return;
+      setState(() {
+        _nombreCtrl.text       = mob.nombre;
+        _tipoCtrl.text         = mob.tipo;
+        _descripcionCtrl.text  = mob.descripcion ?? '';
+        _cantidadCtrl.text     = pm.cantidad.toString();
+        _valorEstimadoCtrl.text =
+            pm.valorEstimado?.toString() ?? '';
+        _estadoSeleccionado    = pm.estado;
+        _cargando = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _cargando = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al cargar: $e'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   @override
@@ -144,13 +106,13 @@ class _EditarMobiliarioScreenState extends State<EditarMobiliarioScreen> {
     if (image == null) return;
     if (kIsWeb) {
       final bytes = await image.readAsBytes();
-      setState(() { _webImage = bytes; _imagenCambiada = true; });
+      setState(() { _webImage = bytes; });
     } else {
-      setState(() { _imageFile = File(image.path); _imagenCambiada = true; });
+      setState(() { _imageFile = File(image.path); });
     }
   }
 
-  void _onSubmit() {
+  void _onSubmit() async {
     if (_formKey.currentState!.validate()) {
       if (_estadoSeleccionado == null) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -163,28 +125,38 @@ class _EditarMobiliarioScreenState extends State<EditarMobiliarioScreen> {
         return;
       }
 
-      // TODO: PUT /api/mobiliario/{mobId}/  y  PATCH /api/propiedades/{id}/mobiliario/{pmId}/
-      final mobiliarioData = {
-        'nombre':      _nombreCtrl.text,
-        'tipo':        _tipoCtrl.text,
-        'descripcion': _descripcionCtrl.text,
-      };
-      final propiedadMobiliarioData = {
-        'cantidad':       _cantidadCtrl.text,
-        'valor_estimado': _valorEstimadoCtrl.text,
-        'estado':         _estadoSeleccionado,
-      };
-      debugPrint('Mobiliario PUT: $mobiliarioData');
-      debugPrint('PropiedadMobiliario PATCH: $propiedadMobiliarioData');
+      try {
+        // Actualizar la relación propiedad-mobiliario
+        await PropiedadMobiliarioService.actualizar(
+          widget.propiedadMobiliarioId!,
+          {
+            'cantidad':       int.tryParse(_cantidadCtrl.text) ?? 1,
+            'valor_estimado': _valorEstimadoCtrl.text.isEmpty
+                ? null
+                : _valorEstimadoCtrl.text,
+            'estado':         _estadoSeleccionado,
+          },
+        );
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Mobiliario actualizado correctamente'),
-          backgroundColor: Color(0xFF1695A3),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      Navigator.pop(context);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Mobiliario actualizado correctamente'),
+            backgroundColor: Color(0xFF1695A3),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        Navigator.pop(context, true);
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 
@@ -198,7 +170,7 @@ class _EditarMobiliarioScreenState extends State<EditarMobiliarioScreen> {
             style: TextStyle(
                 color: Color(0xFF225378), fontWeight: FontWeight.bold)),
         content: Text(
-          '¿Estás seguro de eliminar "${_itemActual?.nombre}"?\nEsta acción no se puede deshacer.',
+          '¿Estás seguro de eliminar "${_nombreCtrl.text}"?\nEsta acción no se puede deshacer.',
           style: const TextStyle(color: Colors.grey, fontSize: 13),
         ),
         actions: [
@@ -208,17 +180,31 @@ class _EditarMobiliarioScreenState extends State<EditarMobiliarioScreen> {
                 style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(ctx);
-              // TODO: DELETE /api/propiedades/{id}/mobiliario/{pmId}/
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Artículo eliminado'),
-                  backgroundColor: Colors.red,
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-              Navigator.pop(context);
+              try {
+                await PropiedadMobiliarioService.eliminar(
+                  widget.propiedadMobiliarioId!,
+                );
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Artículo eliminado'),
+                    backgroundColor: Colors.red,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+                Navigator.pop(context, true);
+              } catch (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Error al eliminar: $e'),
+                    backgroundColor: Colors.red,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
@@ -240,7 +226,9 @@ class _EditarMobiliarioScreenState extends State<EditarMobiliarioScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: const AppHeader(title: 'Editar Mobiliario', showBack: true),
-      body: SingleChildScrollView(
+      body: _cargando
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF1695A3)))
+          : SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 20, 16, 40),
         child: Form(
           key: _formKey,
@@ -495,8 +483,6 @@ class _EditarMobiliarioScreenState extends State<EditarMobiliarioScreen> {
   // ── IMAGE PICKER ──────────────────────────────────────────────────────────
   Widget _buildImagePicker() {
     final hasNewImage = _webImage != null || _imageFile != null;
-    final hasExistingImage =
-        !_imagenCambiada && _itemActual?.fotoUrl != null;
 
     return GestureDetector(
       onTap: _pickImage,
@@ -520,18 +506,7 @@ class _EditarMobiliarioScreenState extends State<EditarMobiliarioScreen> {
                     : Image.file(_imageFile!, fit: BoxFit.cover,
                         width: double.infinity),
               )
-            : hasExistingImage
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(13),
-                    child: Image.network(
-                      _itemActual!.fotoUrl!,
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      errorBuilder: (_, __, ___) =>
-                          _imagePlaceholder(),
-                    ),
-                  )
-                : _imagePlaceholder(),
+            : _imagePlaceholder(),
       ),
     );
   }

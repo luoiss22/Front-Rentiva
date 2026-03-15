@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../../core/services/api_client.dart';
 import '../../../core/widgets/app_header.dart';
+import '../../../data/services/mantenimiento_service.dart' as mant_svc;
 import '../widgets/admin_models.dart';
 import '../widgets/admin_data.dart';
 import '../widgets/admin_helpers.dart';
@@ -63,25 +65,53 @@ class _EditarEspecialistaScreenState
     super.dispose();
   }
 
-  void _guardar() {
+  void _guardar() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final updated = widget.especialista.copyWith(
-      nombre: _nombreCtrl.text.trim(),
-      especialidad: _tipoSel,
-      telefono: _telefonoCtrl.text.trim(),
-      email: _emailCtrl.text.trim(),
-      ciudad: _ciudadCtrl.text.trim(),
-      estadoGeografico: _estadoGeoCtrl.text.trim(),
-      calificacion:
-          double.tryParse(_calificacionCtrl.text.trim()) ??
-              widget.especialista.calificacion,
-      aniosExperiencia:
-          int.tryParse(_aniosExpCtrl.text.trim()) ?? 0,
-      disponible: _disponible,
-    );
+    final body = {
+      'nombre': _nombreCtrl.text.trim(),
+      'especialidad': _tipoSel,
+      'telefono': _telefonoCtrl.text.trim(),
+      'email': _emailCtrl.text.trim(),
+      'ciudad': _ciudadCtrl.text.trim(),
+      'estado_geografico': _estadoGeoCtrl.text.trim(),
+      'calificacion': _calificacionCtrl.text.trim(),
+      'anios_experiencia': int.tryParse(_aniosExpCtrl.text.trim()) ?? 0,
+      'disponible': _disponible,
+    };
 
-    Navigator.pop(context, updated);
+    try {
+      await mant_svc.EspecialistasService.actualizar(widget.especialista.id, body);
+      final updated = widget.especialista.copyWith(
+        nombre: _nombreCtrl.text.trim(),
+        especialidad: _tipoSel,
+        telefono: _telefonoCtrl.text.trim(),
+        email: _emailCtrl.text.trim(),
+        ciudad: _ciudadCtrl.text.trim(),
+        estadoGeografico: _estadoGeoCtrl.text.trim(),
+        calificacion: double.tryParse(_calificacionCtrl.text.trim()) ??
+            widget.especialista.calificacion,
+        aniosExperiencia: int.tryParse(_aniosExpCtrl.text.trim()) ?? 0,
+        disponible: _disponible,
+      );
+      if (mounted) Navigator.pop(context, updated);
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(e.message),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Error de conexión'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    }
   }
 
   @override

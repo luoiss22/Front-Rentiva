@@ -63,6 +63,17 @@ class FichaPago {
     this.archivoPdfUrl,
     required this.fechaGeneracion,
   });
+
+  factory FichaPago.fromJson(Map<String, dynamic> json) {
+    return FichaPago(
+      id: json['id'] as int,
+      codigoReferencia: json['codigo_referencia'] ?? '',
+      clabeInterbancaria: json['clabe_interbancaria'] ?? '',
+      banco: json['banco'] ?? '',
+      archivoPdfUrl: json['archivo_pdf'] as String?,
+      fechaGeneracion: DateTime.tryParse(json['fecha_generacion'] ?? '') ?? DateTime.now(),
+    );
+  }
 }
 
 class Factura {
@@ -85,6 +96,19 @@ class Factura {
     this.pdfPath,
     required this.fechaEmision,
   });
+
+  factory Factura.fromJson(Map<String, dynamic> json) {
+    return Factura(
+      id: json['id'] as int,
+      folioFiscal: json['folio_fiscal'] ?? '',
+      subtotal: double.tryParse(json['subtotal'].toString()) ?? 0,
+      iva: double.tryParse(json['iva'].toString()) ?? 0,
+      total: double.tryParse(json['total'].toString()) ?? 0,
+      xmlPath: json['xml_path'] as String?,
+      pdfPath: json['pdf_path'] as String?,
+      fechaEmision: DateTime.tryParse(json['fecha_emision'] ?? '') ?? DateTime.now(),
+    );
+  }
 }
 
 class Pago {
@@ -119,6 +143,47 @@ class Pago {
     this.ficha,
     this.factura,
   });
+
+  factory Pago.fromJson(Map<String, dynamic> json) {
+    return Pago(
+      id: json['id'] as int,
+      periodo: json['periodo'] ?? '',
+      monto: double.tryParse(json['monto'].toString()) ?? 0,
+      fechaLimite: DateTime.tryParse(json['fecha_limite'] ?? '') ?? DateTime.now(),
+      fechaPago: json['fecha_pago'] != null ? DateTime.tryParse(json['fecha_pago']) : null,
+      metodoPago: _parseMetodo(json['metodo_pago']),
+      referencia: json['referencia'] ?? '',
+      comprobanteUrl: json['comprobante_url'] as String?,
+      recargaMora: double.tryParse(json['recargo_mora'].toString()) ?? 0,
+      estado: _parseEstado(json['estado']),
+      createdAt: DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
+      inquilinoNombre: json['contrato']?['arrendatario_nombre'] ?? json['inquilino_nombre'] ?? 'Sin nombre',
+      ficha: json['ficha'] != null ? FichaPago.fromJson(json['ficha']) : null,
+      factura: json['factura'] != null ? Factura.fromJson(json['factura']) : null,
+    );
+  }
+
+  static PagoEstado _parseEstado(String? val) {
+    switch (val) {
+      case 'pagado':    return PagoEstado.pagado;
+      case 'pendiente': return PagoEstado.pendiente;
+      case 'vencido':   return PagoEstado.vencido;
+      case 'parcial':   return PagoEstado.parcial;
+      case 'cancelado': return PagoEstado.cancelado;
+      default:          return PagoEstado.pendiente;
+    }
+  }
+
+  static MetodoPago? _parseMetodo(String? val) {
+    switch (val) {
+      case 'transferencia': return MetodoPago.transferencia;
+      case 'efectivo':      return MetodoPago.efectivo;
+      case 'deposito':      return MetodoPago.deposito;
+      case 'tarjeta':       return MetodoPago.tarjeta;
+      case 'otro':          return MetodoPago.otro;
+      default:              return null;
+    }
+  }
 
   Pago copyWith({
     PagoEstado? estado,

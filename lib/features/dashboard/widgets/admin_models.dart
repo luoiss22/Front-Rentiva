@@ -31,6 +31,25 @@ class UsuarioAdmin {
   String get nombreCompleto => '$nombre $apellidos';
   String get inicial => nombre[0].toUpperCase();
   bool get activo => estado == 'activo';
+
+  factory UsuarioAdmin.fromJson(Map<String, dynamic> json) {
+    return UsuarioAdmin(
+      id: json['id'] as int,
+      nombre: json['nombre'] ?? '',
+      apellidos: json['apellidos'] ?? '',
+      rol: json['rol'] ?? 'propietario',
+      estado: json['estado'] ?? 'activo',
+      propiedad: '-',
+      telefono: json['telefono'] ?? '',
+      email: json['email'] ?? '',
+      folioIne: json['folio_ine'] ?? '',
+      fechaNacimiento: json['fecha_nacimiento'] != null
+          ? DateTime.tryParse(json['fecha_nacimiento'])
+          : null,
+      fotoUrl: json['foto'] as String?,
+      createdAt: DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
+    );
+  }
 }
 
 class Especialista {
@@ -61,6 +80,22 @@ class Especialista {
   });
 
   String get inicial => nombre[0].toUpperCase();
+
+  factory Especialista.fromJson(Map<String, dynamic> json) {
+    return Especialista(
+      id: json['id'] as int,
+      nombre: json['nombre'] ?? '',
+      especialidad: json['especialidad'] ?? '',
+      telefono: json['telefono'] ?? '',
+      email: json['email'] ?? '',
+      ciudad: json['ciudad'] ?? '',
+      estadoGeografico: json['estado_geografico'] ?? '',
+      calificacion: double.tryParse(json['calificacion'].toString()) ?? 0,
+      aniosExperiencia: json['anios_experiencia'] ?? 0,
+      disponible: json['disponible'] ?? true,
+      createdAt: DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
+    );
+  }
 
   Especialista copyWith({
     String? nombre,
@@ -122,6 +157,25 @@ class Admin {
   String get nombreCompleto => '$nombre $apellidos';
   String get inicial => nombre[0].toUpperCase();
   bool get activo => estado == 'activo';
+
+  factory Admin.fromJson(Map<String, dynamic> json) {
+    return Admin(
+      id: json['id'] as int,
+      nombre: json['nombre'] ?? '',
+      apellidos: json['apellidos'] ?? '',
+      fechaNacimiento: json['fecha_nacimiento'] != null
+          ? DateTime.tryParse(json['fecha_nacimiento'])
+          : null,
+      telefono: json['telefono'] ?? '',
+      email: json['email'] ?? '',
+      folioIne: json['folio_ine'] ?? '',
+      fotoUrl: json['foto'] as String?,
+      rol: json['rol'] ?? 'admin',
+      estado: json['estado'] ?? 'activo',
+      createdAt: DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
+      updatedAt: DateTime.tryParse(json['updated_at'] ?? '') ?? DateTime.now(),
+    );
+  }
 
   Admin copyWith({
     String? nombre,

@@ -1,40 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../../core/services/api_client.dart';
 import '../../../core/widgets/app_header.dart';
+import '../../../data/services/mantenimiento_service.dart';
+import '../../../data/services/propiedades_service.dart';
 
-// ─── MOCK DATA (TODO: GET /api/mantenimiento/{id}/) ───────────────────────────
-class _ReporteEditData {
-  final int id;
-  final String descripcion;
-  final String tipoEspecialista;
-  final String prioridad;
-  final String estado;
-  final double? costoEstimado;
-  final double? costoFinal;
-  final int? propiedadId;
-
-  const _ReporteEditData({
-    required this.id,
-    required this.descripcion,
-    required this.tipoEspecialista,
-    required this.prioridad,
-    required this.estado,
-    this.costoEstimado,
-    this.costoFinal,
-    this.propiedadId,
-  });
-}
-
-final _mockReporte = _ReporteEditData(
-  id: 2,
-  descripcion: 'Cambio de chapa y llave maestra en puerta principal. '
-      'La cerradura actual está dañada y no cierra correctamente.',
-  tipoEspecialista: 'Cerrajero',
-  prioridad: 'media',
-  estado: 'en_proceso',
-  costoEstimado: 800,
-  propiedadId: 2,
-);
+// (mock data eliminado — ahora se carga desde el API)
 
 // ─── PANTALLA ─────────────────────────────────────────────────────────────────
 class EditarReporteScreen extends StatefulWidget {
@@ -47,7 +18,8 @@ class EditarReporteScreen extends StatefulWidget {
 
 class _EditarReporteScreenState extends State<EditarReporteScreen> {
   final _formKey = GlobalKey<FormState>();
-  _ReporteEditData? _data;
+  bool _loadingData = true;
+  String? _loadError;
 
   late TextEditingController _descripcionCtrl;
   late TextEditingController _costoEstimadoCtrl;
@@ -57,13 +29,12 @@ class _EditarReporteScreenState extends State<EditarReporteScreen> {
   String _prioridad        = 'media';
   String _estado           = 'abierto';
   int?   _propiedadId;
+  int?   _reporteId;
+
+  List<Map<String, dynamic>> _propiedades = [];
 
   // TODO: GET /api/propiedades/
-  final List<Map<String, dynamic>> _propiedades = [
-    {'id': 1, 'nombre': 'Depto 302 - Reforma'},
-    {'id': 2, 'nombre': 'Casa Jardines'},
-    {'id': 3, 'nombre': 'Local 5'},
-  ];
+  // (ahora se cargan del API)
 
   static const List<String> _tiposRapidos = [
     'Fontanero', 'Electricista', 'Cerrajero',
@@ -115,17 +86,43 @@ class _EditarReporteScreenState extends State<EditarReporteScreen> {
   @override
   void initState() {
     super.initState();
-    _data = _mockReporte;
-    final d = _data!;
-    _descripcionCtrl   = TextEditingController(text: d.descripcion);
-    _costoEstimadoCtrl = TextEditingController(
-        text: d.costoEstimado?.toStringAsFixed(2) ?? '');
-    _costoFinalCtrl    = TextEditingController(
-        text: d.costoFinal?.toStringAsFixed(2) ?? '');
-    _tipoEspecialista  = d.tipoEspecialista;
-    _prioridad         = d.prioridad;
-    _estado            = d.estado;
-    _propiedadId       = d.propiedadId;
+    _descripcionCtrl   = TextEditingController();
+    _costoEstimadoCtrl = TextEditingController();
+    _costoFinalCtrl    = TextEditingController();
+    _cargarDatos();
+  }
+
+  Future<void> _cargarDatos() async {
+    try {
+      // Cargar propiedades
+      try {
+        final props = await PropiedadesService.listar();
+        _propiedades = props.map((p) => {'id': p.id, 'nombre': p.nombre}).toList();
+      } catch (_) {}
+
+      // Cargar reporte
+      final id = widget.reporteId;
+      if (id == null) {
+        setState(() { _loadError = 'ID de reporte no proporcionado'; _loadingData = false; });
+        return;
+      }
+      _reporteId = id;
+      final det = await ReportesMantenimientoService.detalle(id);
+      setState(() {
+        _descripcionCtrl.text   = det.descripcion;
+        _costoEstimadoCtrl.text = det.costoEstimado?.toStringAsFixed(2) ?? '';
+        _costoFinalCtrl.text    = det.costoFinal?.toStringAsFixed(2) ?? '';
+        _tipoEspecialista       = det.tipoEspecialista;
+        _prioridad              = det.prioridad;
+        _estado                 = det.estado;
+        _propiedadId            = det.propiedadId;
+        _loadingData            = false;
+      });
+    } on ApiException catch (e) {
+      setState(() { _loadError = e.message; _loadingData = false; });
+    } catch (e) {
+      setState(() { _loadError = 'Error de conexión'; _loadingData = false; });
+    }
   }
 
   @override
@@ -137,9 +134,8 @@ class _EditarReporteScreenState extends State<EditarReporteScreen> {
   }
 
   // ── SUBMIT ────────────────────────────────────────────────────────────────
-  void _onSubmit() {
+  void _onSubmit() async {
     if (_formKey.currentState!.validate()) {
-      // TODO: PUT /api/mantenimiento/{id}/
       final data = {
         'propiedad':         _propiedadId,
         'descripcion':       _descripcionCtrl.text,
@@ -150,12 +146,19 @@ class _EditarReporteScreenState extends State<EditarReporteScreen> {
             ? null : _costoEstimadoCtrl.text,
         'costo_final': _costoFinalCtrl.text.isEmpty
             ? null : _costoFinalCtrl.text,
-        // Si estado == 'resuelto' → backend asigna fecha_resolucion = now()
       };
-      debugPrint('PUT /api/mantenimiento/${_data!.id}/ $data');
 
-      _snack('Reporte actualizado correctamente', const Color(0xFF1695A3));
-      Navigator.pop(context);
+      try {
+        await ReportesMantenimientoService.actualizar(_reporteId!, data);
+        if (mounted) {
+          _snack('Reporte actualizado correctamente', const Color(0xFF1695A3));
+          Navigator.pop(context);
+        }
+      } on ApiException catch (e) {
+        if (mounted) _snack(e.message, Colors.red);
+      } catch (_) {
+        if (mounted) _snack('Error de conexión', Colors.red);
+      }
     }
   }
 
@@ -170,7 +173,7 @@ class _EditarReporteScreenState extends State<EditarReporteScreen> {
             style: TextStyle(
                 color: Color(0xFF225378), fontWeight: FontWeight.bold)),
         content: Text(
-          '¿Estás seguro de eliminar el reporte #${_data?.id}?\n'
+          '¿Estás seguro de eliminar el reporte #$_reporteId?\n'
           'Esta acción no se puede deshacer.',
           style: const TextStyle(color: Colors.grey, fontSize: 13),
         ),
@@ -181,12 +184,20 @@ class _EditarReporteScreenState extends State<EditarReporteScreen> {
                 style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(ctx);
-              // TODO: DELETE /api/mantenimiento/{id}/
-              _snack('Reporte eliminado', Colors.red);
-              Navigator.pushNamedAndRemoveUntil(
-                  context, '/mantenimiento', (r) => false);
+              try {
+                await ReportesMantenimientoService.eliminar(_reporteId!);
+                if (context.mounted) {
+                  _snack('Reporte eliminado', Colors.red);
+                  Navigator.pushNamedAndRemoveUntil(
+                      context, '/mantenimiento', (r) => false);
+                }
+              } on ApiException catch (e) {
+                if (context.mounted) _snack(e.message, Colors.red);
+              } catch (_) {
+                if (context.mounted) _snack('Error al eliminar', Colors.red);
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
@@ -217,7 +228,18 @@ class _EditarReporteScreenState extends State<EditarReporteScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: const AppHeader(title: 'Editar Reporte', showBack: true),
-      body: SingleChildScrollView(
+      body: _loadingData
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF1695A3)))
+          : _loadError != null
+              ? Center(child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(_loadError!, style: const TextStyle(color: Colors.red)),
+                    const SizedBox(height: 12),
+                    ElevatedButton(onPressed: _cargarDatos, child: const Text('Reintentar')),
+                  ],
+                ))
+              : SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
         child: Form(
           key: _formKey,

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../../core/services/api_client.dart';
 import '../../../core/widgets/app_header.dart';
+import '../../../data/services/notificaciones_service.dart';
 
 // ─── MODELOS según backend Django ─────────────────────────────────────────────
 enum NotifTipo { pago_proximo, pago_vencido, contrato_por_vencer, general }
@@ -40,49 +42,7 @@ class Notificacion {
   }
 }
 
-// ─── DATOS DE EJEMPLO (reemplazar con API Django) ────────────────────────────
-final List<Notificacion> _notificacionesEjemplo = [
-  Notificacion(
-    id: 1,
-    tipo: NotifTipo.pago_proximo,
-    titulo: 'Pago Próximo',
-    mensaje: 'Renta Depto 302 vence mañana.',
-    fechaProgramada: DateTime.now().add(const Duration(days: 1)),
-    medio: NotifMedio.push,
-    createdAt: DateTime.now().subtract(const Duration(hours: 2)),
-    read: false,
-  ),
-  Notificacion(
-    id: 2,
-    tipo: NotifTipo.contrato_por_vencer,
-    titulo: 'Contrato por Vencer',
-    mensaje: 'Contrato de Maria Gonzalez finaliza en 15 días.',
-    fechaProgramada: DateTime.now().add(const Duration(days: 15)),
-    medio: NotifMedio.email,
-    createdAt: DateTime.now().subtract(const Duration(days: 1)),
-    read: false,
-  ),
-  Notificacion(
-    id: 3,
-    tipo: NotifTipo.pago_vencido,
-    titulo: 'Pago Vencido',
-    mensaje: 'Juan Pérez no ha realizado el pago de mayo.',
-    fechaProgramada: DateTime.now().subtract(const Duration(days: 1)),
-    medio: NotifMedio.sms,
-    createdAt: DateTime.now().subtract(const Duration(days: 2)),
-    read: true,
-  ),
-  Notificacion(
-    id: 4,
-    tipo: NotifTipo.general,
-    titulo: 'Mantenimiento',
-    mensaje: 'Solicitud de reparación en Casa Jardines.',
-    fechaProgramada: DateTime.now().subtract(const Duration(days: 3)),
-    medio: NotifMedio.whatsapp,
-    createdAt: DateTime.now().subtract(const Duration(days: 3)),
-    read: true,
-  ),
-];
+// (datos mock eliminados — ahora se cargan desde el API)
 
 // ─── PANTALLA ─────────────────────────────────────────────────────────────────
 class NotificacionesScreen extends StatefulWidget {
@@ -93,16 +53,63 @@ class NotificacionesScreen extends StatefulWidget {
 }
 
 class _NotificacionesScreenState extends State<NotificacionesScreen> {
-  late List<Notificacion> _notifications;
+  List<Notificacion> _notifications = [];
+  bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _notifications = List.from(_notificacionesEjemplo);
+    _cargarNotificaciones();
   }
 
-  void _remove(int id) {
-    setState(() => _notifications.removeWhere((n) => n.id == id));
+  Future<void> _cargarNotificaciones() async {
+    setState(() { _loading = true; _error = null; });
+    try {
+      final items = await NotificacionesService.listar();
+      setState(() {
+        _notifications = items.map((item) {
+          return Notificacion(
+            id: item.id,
+            tipo: NotifTipo.values.firstWhere(
+              (e) => e.name == item.tipo,
+              orElse: () => NotifTipo.general,
+            ),
+            titulo: item.titulo,
+            mensaje: '',
+            fechaProgramada: DateTime.tryParse(item.fechaProgramada) ?? DateTime.now(),
+            medio: NotifMedio.values.firstWhere(
+              (e) => e.name == item.medio,
+              orElse: () => NotifMedio.email,
+            ),
+            createdAt: DateTime.tryParse(item.fechaProgramada) ?? DateTime.now(),
+          );
+        }).toList();
+        _loading = false;
+      });
+    } on ApiException catch (e) {
+      setState(() { _error = e.message; _loading = false; });
+    } catch (e) {
+      setState(() { _error = 'Error de conexión'; _loading = false; });
+    }
+  }
+
+  Future<void> _remove(int id) async {
+    try {
+      await NotificacionesService.eliminar(id);
+      setState(() => _notifications.removeWhere((n) => n.id == id));
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(e.message),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } catch (_) {
+      // Si falla la API, igual removemos de la UI
+      setState(() => _notifications.removeWhere((n) => n.id == id));
+    }
   }
 
   void _markAllRead() {
@@ -128,7 +135,18 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: const AppHeader(title: 'Notificaciones', showBack: true),
-      body: Column(
+      body: _loading
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF1695A3)))
+          : _error != null
+              ? Center(child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(_error!, style: const TextStyle(color: Colors.red)),
+                    const SizedBox(height: 12),
+                    ElevatedButton(onPressed: _cargarNotificaciones, child: const Text('Reintentar')),
+                  ],
+                ))
+              : Column(
         children: [
           // ── Barra superior ───────────────────────────────────────────────
           Padding(

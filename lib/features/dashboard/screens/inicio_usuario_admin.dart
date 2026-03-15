@@ -1,6 +1,8 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../../core/services/api_client.dart';
 import '../../../core/widgets/app_header.dart';
+import '../../../data/services/mantenimiento_service.dart' as mant_svc;
 import '../widgets/admin_models.dart';
 import '../widgets/admin_data.dart';
 import '../widgets/admin_helpers.dart';
@@ -50,12 +52,73 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   String _tipoSel   = 'Fontanero';
   bool   _disponible = true;
 
+  // Loading state
+  bool _loading = true;
+  String? _error;
+
   @override
   void initState() {
     super.initState();
-    _usuarios      = List.from(usuariosIniciales);
-    _admins        = List.from(adminsIniciales);
-    _especialistas = List.from(especialistasIniciales);
+    _usuarios      = [];
+    _admins        = [];
+    _especialistas = [];
+    _cargarDatos();
+  }
+
+  Future<void> _cargarDatos() async {
+    setState(() { _loading = true; _error = null; });
+    try {
+      // Cargar propietarios (usuarios + admins)
+      final propData = await ApiClient.get('/propietarios/');
+      final propResults = propData['results'] as List;
+
+      final List<UsuarioAdmin> usuarios = [];
+      final List<Admin> admins = [];
+
+      for (final json in propResults) {
+        final rol = json['rol'] ?? 'propietario';
+        if (rol == 'admin') {
+          admins.add(Admin.fromJson(json));
+        } else {
+          usuarios.add(UsuarioAdmin.fromJson(json));
+        }
+      }
+
+      // Cargar especialistas
+      final List<Especialista> esps = [];
+      try {
+        final espItems = await mant_svc.EspecialistasService.listar();
+        for (final item in espItems) {
+          try {
+            final det = await mant_svc.EspecialistasService.detalle(item.id);
+            esps.add(Especialista(
+              id: det.id,
+              nombre: det.nombre,
+              especialidad: det.especialidad,
+              telefono: det.telefono,
+              email: det.email,
+              ciudad: det.ciudad,
+              estadoGeografico: det.estadoGeografico,
+              calificacion: det.calificacion,
+              aniosExperiencia: det.aniosExperiencia,
+              disponible: det.disponible,
+              createdAt: DateTime.now(),
+            ));
+          } catch (_) {}
+        }
+      } catch (_) {}
+
+      setState(() {
+        _usuarios = usuarios;
+        _admins = admins;
+        _especialistas = esps;
+        _loading = false;
+      });
+    } on ApiException catch (e) {
+      setState(() { _error = e.message; _loading = false; });
+    } catch (e) {
+      setState(() { _error = 'Error de conexión'; _loading = false; });
+    }
   }
 
   @override
@@ -103,18 +166,32 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   void _eliminarUsuario(int id) => _confirmarEliminar(
     titulo: '¿Eliminar usuario?',
     cuerpo: '¿Estas seguro de eliminar este usuario permanentemente?',
-    onConfirm: () {
-      setState(() => _usuarios.removeWhere((u) => u.id == id));
-      _snack('Usuario eliminado del sistema', Colors.red.shade400);
+    onConfirm: () async {
+      try {
+        await ApiClient.delete('/propietarios/$id/');
+        setState(() => _usuarios.removeWhere((u) => u.id == id));
+        _snack('Usuario eliminado del sistema', Colors.red.shade400);
+      } on ApiException catch (e) {
+        _snack(e.message, Colors.red);
+      } catch (_) {
+        _snack('Error al eliminar', Colors.red);
+      }
     },
   );
 
   void _eliminarAdmin(int id) => _confirmarEliminar(
     titulo: '¿Eliminar administrador?',
     cuerpo: 'Esta accion revocara el acceso del administrador permanentemente.',
-    onConfirm: () {
-      setState(() => _admins.removeWhere((a) => a.id == id));
-      _snack('Administrador eliminado', Colors.red.shade400);
+    onConfirm: () async {
+      try {
+        await ApiClient.delete('/propietarios/$id/');
+        setState(() => _admins.removeWhere((a) => a.id == id));
+        _snack('Administrador eliminado', Colors.red.shade400);
+      } on ApiException catch (e) {
+        _snack(e.message, Colors.red);
+      } catch (_) {
+        _snack('Error al eliminar', Colors.red);
+      }
     },
   );
 
@@ -195,28 +272,47 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     }
   }
 
-  void _guardarEspecialista() {
+  void _guardarEspecialista() async {
     if (_formKey.currentState!.validate()) {
-      setState(() {
-        _especialistas.add(Especialista(
-          id: DateTime.now().millisecondsSinceEpoch,
-          nombre: _nombreEspCtrl.text.trim(),
-          especialidad: _tipoSel,
-          telefono: _telEspCtrl.text.trim(),
-          email: _emailEspCtrl.text.trim(),
-          ciudad: _ciudadEspCtrl.text.trim(),
-          estadoGeografico: _estadoGeoCtrl.text.trim(),
-          calificacion: 5.0,
-          aniosExperiencia: int.tryParse(_aniosExpCtrl.text.trim()) ?? 0,
-          disponible: _disponible,
-          createdAt: DateTime.now(),
-        ));
-        _isAddingProvider = false;
-        for (final c in [_nombreEspCtrl, _telEspCtrl, _emailEspCtrl,
-              _ciudadEspCtrl, _estadoGeoCtrl, _aniosExpCtrl]) c.clear();
-        _tipoSel = 'Fontanero'; _disponible = true;
-      });
-      _snack('Especialista registrado correctamente', const Color(0xFF1695A3));
+      final body = {
+        'nombre': _nombreEspCtrl.text.trim(),
+        'especialidad': _tipoSel,
+        'telefono': _telEspCtrl.text.trim(),
+        'email': _emailEspCtrl.text.trim(),
+        'ciudad': _ciudadEspCtrl.text.trim(),
+        'estado_geografico': _estadoGeoCtrl.text.trim(),
+        'calificacion': '5.00',
+        'anios_experiencia': int.tryParse(_aniosExpCtrl.text.trim()) ?? 0,
+        'disponible': _disponible,
+      };
+
+      try {
+        final det = await mant_svc.EspecialistasService.crear(body);
+        setState(() {
+          _especialistas.add(Especialista(
+            id: det.id,
+            nombre: det.nombre,
+            especialidad: det.especialidad,
+            telefono: det.telefono,
+            email: det.email,
+            ciudad: det.ciudad,
+            estadoGeografico: det.estadoGeografico,
+            calificacion: det.calificacion,
+            aniosExperiencia: det.aniosExperiencia,
+            disponible: det.disponible,
+            createdAt: DateTime.now(),
+          ));
+          _isAddingProvider = false;
+          for (final c in [_nombreEspCtrl, _telEspCtrl, _emailEspCtrl,
+                _ciudadEspCtrl, _estadoGeoCtrl, _aniosExpCtrl]) c.clear();
+          _tipoSel = 'Fontanero'; _disponible = true;
+        });
+        _snack('Especialista registrado correctamente', const Color(0xFF1695A3));
+      } on ApiException catch (e) {
+        _snack(e.message, Colors.red);
+      } catch (_) {
+        _snack('Error de conexión', Colors.red);
+      }
     }
   }
 
@@ -237,9 +333,16 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   void _eliminarEspecialista(int id) => _confirmarEliminar(
     titulo: '¿Eliminar especialista?',
     cuerpo: 'Esta acción eliminará al especialista permanentemente.',
-    onConfirm: () {
-      setState(() => _especialistas.removeWhere((e) => e.id == id));
-      _snack('Especialista eliminado', Colors.red.shade400);
+    onConfirm: () async {
+      try {
+        await mant_svc.EspecialistasService.eliminar(id);
+        setState(() => _especialistas.removeWhere((e) => e.id == id));
+        _snack('Especialista eliminado', Colors.red.shade400);
+      } on ApiException catch (e) {
+        _snack(e.message, Colors.red);
+      } catch (_) {
+        _snack('Error al eliminar', Colors.red);
+      }
     },
   );
 
@@ -475,7 +578,18 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: const AppHeader(title: 'Panel Admin'),
-      body: Column(children: [
+      body: _loading
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF1695A3)))
+          : _error != null
+              ? Center(child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(_error!, style: const TextStyle(color: Colors.red)),
+                    const SizedBox(height: 12),
+                    ElevatedButton(onPressed: _cargarDatos, child: const Text('Reintentar')),
+                  ],
+                ))
+              : Column(children: [
         // Tabs
         Container(
           color: const Color(0xFFF8FAFC),

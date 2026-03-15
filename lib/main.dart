@@ -2,10 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:rentiva/features/auth/screens/login_screen.dart';
 import 'package:rentiva/features/auth/screens/register_screen.dart';
-import 'package:rentiva/features/dashborard/screens/inicio_usuario_admin.dart';
-import 'package:rentiva/features/dashborard/screens/inicio_usuario_screen.dart';
+import 'package:rentiva/features/dashboard/screens/inicio_usuario_admin.dart';
+import 'package:rentiva/features/dashboard/screens/inicio_usuario_screen.dart';
 import 'package:rentiva/features/home/screens/landing_screen.dart';
 import 'package:rentiva/features/home/screens/tutorial_screen.dart';
+import 'package:rentiva/features/contratos/screens/contratos_screen.dart';
+import 'package:rentiva/features/contratos/screens/nuevo_contrato_screen.dart';
+import 'package:rentiva/features/contratos/screens/detalle_contrato_screen.dart';
+import 'package:rentiva/features/documentos/screens/documentos_screen.dart';
+import 'package:rentiva/features/fiscal/screens/fiscal_screen.dart';
+import 'package:rentiva/features/fiscal/screens/nuevo_fiscal_screen.dart';
+import 'package:rentiva/features/fiscal/screens/detalle_fiscal_screen.dart';
 import 'package:rentiva/features/inquilinos/screens/editar_inquilino_screen.dart';
 import 'package:rentiva/features/inquilinos/screens/informacion_inquilino_screen.dart';
 import 'package:rentiva/features/inquilinos/screens/inquilinos_screen.dart';
@@ -86,12 +93,25 @@ class MyApp extends StatelessWidget {
         return EditarInquilinoScreen(arrendatarioId: id);
         },
         '/pagos': (context) => const PagosScreen(),
+        '/contratos': (context) => const ContratosScreen(),
+        '/contratos/nuevo': (context) => const NuevoContratoScreen(),
+        '/contratos/detalle': (context) {
+          final id = ModalRoute.of(context)!.settings.arguments as int?;
+          return DetalleContratoScreen(contratoId: id);
+        },
         '/mantenimiento': (context) => const MantenimientoScreen(),
         '/mantenimiento/nuevo': (context) => const NuevoReporteScreen(),
         '/mantenimiento/editar': (context) {
         final id = ModalRoute.of(context)!.settings.arguments as int?;
         return EditarReporteScreen(reporteId: id);
-},
+        },
+        '/documentos': (context) => const DocumentosScreen(),
+        '/fiscal': (context) => const FiscalScreen(),
+        '/fiscal/nuevo': (context) => const NuevoFiscalScreen(),
+        '/fiscal/detalle': (context) {
+          final id = ModalRoute.of(context)!.settings.arguments as int?;
+          return DetalleFiscalScreen(fiscalId: id);
+        },
       },
     );
   }
