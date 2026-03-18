@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/services/api_client.dart';
 import '../../../core/widgets/app_header.dart';
 import '../widgets/contrato_pdf.dart';
 
@@ -125,66 +126,6 @@ class PagoResumen {
   });
 }
 
-// ─── DATOS EJEMPLO ────────────────────────────────────────────────────────────
-final _propiedadEjemplo = PropiedadDetalle(
-  id: 1,
-  nombre: 'Apartamento Moderno Centro',
-  precio: '\$12,500',
-  direccion: 'Av. Reforma 222',
-  ciudad: 'Ciudad de México',
-  estadoGeografico: 'CDMX',
-  descripcion:
-      'Hermoso apartamento recién remodelado con vista a la ciudad. Cuenta con acabados de lujo, cocina integral y seguridad 24/7.',
-  imagen:
-      'https://images.unsplash.com/photo-1594873604892-b599f847e859?w=800',
-  estado: 'Rentada',
-  tipo: 'Departamento',
-  superficieM2: 85,
-  inquilino: const InquilinoResumen(
-    nombre: 'Juan Pérez',
-    telefono: '55 1234 5678',
-    email: 'juan.perez@email.com',
-    iniciales: 'JP',
-    estadoPago: 'Al corriente',
-    desde: 'Enero 2023',
-  ),
-  mobiliario: const [
-    PropiedadMobiliario(
-      id: 1,
-      mobiliario: Mobiliario(id: 1, nombre: 'Sofá cama gris', tipo: 'Mueble', descripcion: 'Sofá cama de 3 plazas color gris'),
-      cantidad: 1,
-      valorEstimado: 4500,
-      estado: MobiliarioEstado.bueno,
-    ),
-    PropiedadMobiliario(
-      id: 2,
-      mobiliario: Mobiliario(id: 2, nombre: 'Mesa de centro', tipo: 'Mueble', descripcion: 'Mesa de centro de cristal templado'),
-      cantidad: 1,
-      valorEstimado: 1800,
-      estado: MobiliarioEstado.regular,
-    ),
-    PropiedadMobiliario(
-      id: 3,
-      mobiliario: Mobiliario(id: 3, nombre: 'Refrigerador Samsung', tipo: 'Electrodoméstico', descripcion: 'Refrigerador Samsung 14 pies No Frost'),
-      cantidad: 1,
-      valorEstimado: 12000,
-      estado: MobiliarioEstado.bueno,
-    ),
-    PropiedadMobiliario(
-      id: 4,
-      mobiliario: Mobiliario(id: 4, nombre: 'Lavadora LG', tipo: 'Electrodoméstico', descripcion: 'Lavadora LG 18kg carga frontal'),
-      cantidad: 1,
-      valorEstimado: 9500,
-      estado: MobiliarioEstado.bueno,
-    ),
-  ],
-  pagos: const [
-    PagoResumen(id: 1, fecha: '01/05/2023', monto: '\$12,500', status: 'Pagado'),
-    PagoResumen(id: 2, fecha: '01/04/2023', monto: '\$12,500', status: 'Pagado'),
-    PagoResumen(id: 3, fecha: '01/03/2023', monto: '\$12,500', status: 'Pagado'),
-  ],
-);
-
 // ─── PANTALLA ─────────────────────────────────────────────────────────────────
 class InformacionPropiedadScreen extends StatefulWidget {
   final int? propiedadId;
@@ -200,8 +141,9 @@ class _InformacionPropiedadScreenState
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  // TODO: cargar desde Django → GET /api/propiedades/{id}/
-  final PropiedadDetalle _propiedad = _propiedadEjemplo;
+  PropiedadDetalle? _propiedad;
+  bool _loading = true;
+  String? _error;
 
   final List<_TabItem> _tabs = const [
     _TabItem(key: 'detalles',   label: 'Detalles'),
@@ -214,6 +156,104 @@ class _InformacionPropiedadScreenState
   void initState() {
     super.initState();
     _tabController = TabController(length: _tabs.length, vsync: this);
+    _cargarPropiedad();
+  }
+
+  Future<void> _cargarPropiedad() async {
+    if (widget.propiedadId == null) {
+      setState(() { _error = 'ID de propiedad no especificado'; _loading = false; });
+      return;
+    }
+    try {
+      final data = await ApiClient.get('/propiedades/${widget.propiedadId}/');
+
+      // Mobiliario
+      List<PropiedadMobiliario> mobiliario = [];
+      try {
+        final mobData = await ApiClient.get('/propiedades/${widget.propiedadId}/mobiliario/');
+        final mobList = mobData is List ? mobData : (mobData['results'] ?? []);
+        mobiliario = (mobList as List).map<PropiedadMobiliario>((m) {
+          final mob = m['mobiliario'] ?? m;
+          return PropiedadMobiliario(
+            id: m['id'] ?? 0,
+            mobiliario: Mobiliario(
+              id: mob['id'] ?? 0,
+              nombre: mob['nombre'] ?? '',
+              tipo: mob['tipo'] ?? '',
+              descripcion: mob['descripcion'] ?? '',
+              fotoUrl: mob['foto'],
+            ),
+            cantidad: m['cantidad'] ?? 1,
+            valorEstimado: m['valor_estimado'] != null ? double.tryParse(m['valor_estimado'].toString()) : null,
+            estado: MobiliarioEstado.values.firstWhere(
+              (e) => e.name == (m['estado'] ?? 'bueno'),
+              orElse: () => MobiliarioEstado.bueno,
+            ),
+          );
+        }).toList();
+      } catch (_) {}
+
+      // Pagos de la propiedad
+      List<PagoResumen> pagos = [];
+      try {
+        final pagosData = await ApiClient.get('/pagos/?propiedad=${widget.propiedadId}');
+        final pagosList = pagosData is List ? pagosData : (pagosData['results'] ?? []);
+        pagos = (pagosList as List).map<PagoResumen>((p) {
+          return PagoResumen(
+            id: p['id'] ?? 0,
+            fecha: p['fecha_pago'] ?? p['fecha_limite'] ?? '',
+            monto: '\$${p['monto'] ?? 0}',
+            status: p['estado'] ?? '',
+          );
+        }).toList();
+      } catch (_) {}
+
+      // Inquilino activo (contrato activo de esta propiedad)
+      InquilinoResumen? inquilino;
+      try {
+        final contratosData = await ApiClient.get('/contratos/?propiedad=${widget.propiedadId}&estado=activo');
+        final contratosList = contratosData is List ? contratosData : (contratosData['results'] ?? []);
+        if ((contratosList as List).isNotEmpty) {
+          final contrato = contratosList.first;
+          final inq = contrato['arrendatario'] ?? {};
+          final nombre = '${inq['nombre'] ?? ''} ${inq['apellidos'] ?? ''}'.trim();
+          final iniciales = nombre.isNotEmpty
+              ? nombre.split(' ').take(2).map((w) => w.isNotEmpty ? w[0] : '').join().toUpperCase()
+              : '?';
+          inquilino = InquilinoResumen(
+            nombre: nombre,
+            telefono: inq['telefono'] ?? '',
+            email: inq['email'] ?? '',
+            iniciales: iniciales,
+            estadoPago: 'Activo',
+            desde: contrato['fecha_inicio'] ?? '',
+          );
+        }
+      } catch (_) {}
+
+      final costoRenta = double.tryParse(data['costo_renta'].toString()) ?? 0;
+      setState(() {
+        _propiedad = PropiedadDetalle(
+          id: data['id'],
+          nombre: data['nombre'] ?? '',
+          precio: '\$${costoRenta.toStringAsFixed(0)}',
+          direccion: data['direccion'] ?? '',
+          ciudad: data['ciudad'] ?? '',
+          estadoGeografico: data['estado_geografico'] ?? '',
+          descripcion: data['descripcion'] ?? '',
+          imagen: data['imagen'] ?? '',
+          estado: data['estado'] ?? '',
+          tipo: data['tipo'] ?? '',
+          superficieM2: data['superficie_m2'] != null ? double.tryParse(data['superficie_m2'].toString()) : null,
+          inquilino: inquilino,
+          mobiliario: mobiliario,
+          pagos: pagos,
+        );
+        _loading = false;
+      });
+    } catch (e) {
+      setState(() { _error = 'No se pudo cargar la propiedad'; _loading = false; });
+    }
   }
 
   @override
@@ -224,6 +264,29 @@ class _InformacionPropiedadScreenState
 
   @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator(color: Color(0xFF1695A3))),
+      );
+    }
+    if (_error != null || _propiedad == null) {
+      return Scaffold(
+        appBar: const AppHeader(title: 'Detalle', showBack: true),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.wifi_off, size: 48, color: Colors.grey),
+              const SizedBox(height: 12),
+              Text(_error ?? 'Error desconocido', style: const TextStyle(color: Colors.grey)),
+              const SizedBox(height: 16),
+              ElevatedButton(onPressed: () { setState(() { _loading = true; _error = null; }); _cargarPropiedad(); }, child: const Text('Reintentar')),
+            ],
+          ),
+        ),
+      );
+    }
+    final propiedad = _propiedad!;
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: const AppHeader(title: 'Detalle', showBack: true),
@@ -232,9 +295,7 @@ class _InformacionPropiedadScreenState
           SliverToBoxAdapter(
             child: Column(
               children: [
-                // ── Hero imagen ────────────────────────────────────────────
-                _HeroImage(propiedad: _propiedad),
-                // ── Tabs ───────────────────────────────────────────────────
+                _HeroImage(propiedad: propiedad),
                 Padding(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -256,17 +317,14 @@ class _InformacionPropiedadScreenState
                       unselectedLabelColor: Colors.grey,
                       labelStyle: const TextStyle(
                           fontSize: 12, fontWeight: FontWeight.bold),
-                      unselectedLabelStyle:
-                          const TextStyle(fontSize: 12),
+                      unselectedLabelStyle: const TextStyle(fontSize: 12),
                       indicator: BoxDecoration(
                         color: const Color(0xFF225378),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       indicatorSize: TabBarIndicatorSize.tab,
                       dividerColor: Colors.transparent,
-                      tabs: _tabs
-                          .map((t) => Tab(text: t.label, height: 36))
-                          .toList(),
+                      tabs: _tabs.map((t) => Tab(text: t.label, height: 36)).toList(),
                     ),
                   ),
                 ),
@@ -277,13 +335,10 @@ class _InformacionPropiedadScreenState
         body: TabBarView(
           controller: _tabController,
           children: [
-            _TabDetalles(propiedad: _propiedad),
-            _TabMobiliario(
-              propiedadId: _propiedad.id,
-              mobiliario: _propiedad.mobiliario,
-            ),
-            _TabInquilino(propiedad: _propiedad),
-            _TabPagos(pagos: _propiedad.pagos),
+            _TabDetalles(propiedad: propiedad),
+            _TabMobiliario(propiedadId: propiedad.id, mobiliario: propiedad.mobiliario),
+            _TabInquilino(propiedad: propiedad),
+            _TabPagos(pagos: propiedad.pagos),
           ],
         ),
       ),

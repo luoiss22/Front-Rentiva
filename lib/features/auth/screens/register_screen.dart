@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 
 // Widgets reutilizables desde core/
 import '../../../core/widgets/app_text_field.dart';
@@ -95,17 +97,79 @@ class _RegisterScreenState extends State<RegisterScreen>
     }
   }
 
-  void _onSubmit() {
-    if (_formKey.currentState!.validate()) {
-      // TODO: conectar con Django
+  bool _isLoading = false;
+
+  Future<void> _onSubmit() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      // Convertir fecha de DD/MM/YYYY a YYYY-MM-DD para el backend
+      String? fechaBackend;
+      final fechaTexto = _birthDateController.text.trim();
+      if (fechaTexto.isNotEmpty) {
+        final partes = fechaTexto.split('/');
+        fechaBackend = '${partes[2]}-${partes[1]}-${partes[0]}';
+      }
+
+      final body = {
+        'nombre': _nameController.text.trim(),
+        'apellidos': _lastNameController.text.trim(),
+        'email': _emailController.text.trim(),
+        'telefono': _phoneController.text.trim(),
+        'password': _passwordController.text,
+        if (fechaBackend != null) 'fecha_nacimiento': fechaBackend,
+        if (_INEController.text.isNotEmpty)
+          'folio_ine': _INEController.text.trim(),
+      };
+
+      final response = await http.post(
+        Uri.parse('http://localhost:8000/api/v1/auth/registro/'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(body),
+      );
+
+      if (!mounted) return;
+
+      if (response.statusCode == 201) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('¡Cuenta creada exitosamente!'),
+            backgroundColor: Color(0xFF1695A3),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        Navigator.pushNamed(context, '/home');
+      } else {
+        final data = jsonDecode(response.body);
+        String mensaje = 'Error al crear la cuenta';
+        if (data is Map) {
+          final errores = data.entries.map((e) {
+            final val = e.value;
+            return val is List ? val.first.toString() : val.toString();
+          }).join('\n');
+          if (errores.isNotEmpty) mensaje = errores;
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(mensaje),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('¡Cuenta creada exitosamente!'),
-          backgroundColor: Color(0xFF1695A3),
+          content: Text('No se pudo conectar al servidor'),
+          backgroundColor: Colors.redAccent,
           behavior: SnackBarBehavior.floating,
         ),
       );
-      Navigator.pushNamed(context, '/home');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -278,10 +342,11 @@ class _RegisterScreenState extends State<RegisterScreen>
                                 UpperCaseTextFormatter(),
                               ],
                               validator: (v) {
-                                if (v == null || v.isEmpty) return 'Requerido';
-                                if (v.length != 18) return 'Debe tener 18 caracteres';
-                                if (!RegExp(r'^[A-Z]{5}\d{6}[A-Z0-9]{7}$')
-                                    .hasMatch(v)) {
+                                if (v != null && v.isNotEmpty && v.length != 18) {
+                                  return 'Debe tener 18 caracteres';
+                                }
+                                if (v != null && v.isNotEmpty &&
+                                    !RegExp(r'^[A-Z]{5}\d{6}[A-Z0-9]{7}$').hasMatch(v)) {
                                   return 'Folio INE inválido';
                                 }
                                 return null;
@@ -350,8 +415,17 @@ class _RegisterScreenState extends State<RegisterScreen>
                             SizedBox(
                               width: double.infinity,
                               child: ElevatedButton.icon(
-                                onPressed: _onSubmit,
-                                icon: const Icon(Icons.save_outlined, size: 20),
+                                onPressed: _isLoading ? null : _onSubmit,
+                                icon: _isLoading
+                                    ? const SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : const Icon(Icons.save_outlined, size: 20),
                                 label: const Text(
                                   'Registrarse',
                                   style: TextStyle(
@@ -374,8 +448,8 @@ class _RegisterScreenState extends State<RegisterScreen>
 
                             // ── Link a Login ──────────────────────────────
                             Center(
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
+                              child: Wrap(
+                                alignment: WrapAlignment.center,
                                 children: [
                                   const Text(
                                     '¿Ya tienes una cuenta? ',

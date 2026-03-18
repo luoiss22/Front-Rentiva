@@ -92,4 +92,15 @@ class AuthService {
       refreshToken: refresh,
     );
   }
+
+  /// POST /auth/cambio-password/
+  static Future<void> cambiarPassword({
+    required String passwordActual,
+    required String passwordNuevo,
+  }) async {
+    await ApiClient.post('/auth/cambio-password/', {
+      'password_actual': passwordActual,
+      'password_nuevo':  passwordNuevo,
+    });
+  }
 }

@@ -102,7 +102,8 @@ class _InquilinosScreenState extends State<InquilinosScreen> {
         onTap: _onNavTap,
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => Navigator.pushNamed(context, '/inquilinos/nuevo'),
+        onPressed: () => Navigator.pushNamed(context, '/inquilinos/nuevo')
+            .then((_) => _recargar()),
         backgroundColor: const Color(0xFFEB7F00),
         elevation: 4,
         child: const Icon(Icons.person_add_outlined,

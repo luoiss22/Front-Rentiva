@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../services/api_client.dart';
+import '../services/storage_service.dart';
 import '../utils/upper_case_formatter.dart';
 
 // ─── MODELO DATOS FISCALES según Django ──────────────────────────────────────
@@ -35,24 +37,6 @@ class DatosBancarios {
     required this.banco,
   });
 }
-
-// Mock fiscal (TODO: GET /api/fiscal/?tipo_entidad=propietario&entidad_id={id})
-const DatosFiscales _mockFiscal = DatosFiscales(
-  id: 1,
-  nombreORazonSocial: 'Juan Sebastián García López',
-  rfc: 'GARJ900315H800',
-  regimenFiscal: '605 - Sueldos y Salarios',
-  usoCfdi: 'G03',
-  codigoPostal: '06600',
-  correoFacturacion: 'facturacion@rentiva.com',
-);
-
-// Mock bancario (TODO: GET /api/bancario/?propietario_id={id})
-const DatosBancarios _mockBancario = DatosBancarios(
-  id: 1,
-  clabe: '012345678901234567',
-  banco: 'BBVA',
-);
 
 // Catálogos SAT simplificados
 const List<String> _regimenesFiscales = [
@@ -106,17 +90,15 @@ class UserProfileModal extends StatefulWidget {
 class _UserProfileModalState extends State<UserProfileModal> {
   bool _isEditing = false;
   bool _obscurePassword = true;
+  bool _loadingProfile = true;
 
-  // ── Datos actuales ──────────────────────────────────────────────────────────
   Map<String, String> _userData = {
-    'nombre':       'Juan Sebastián',
-    'apellidos':    'García López',
-    'fechaNac':     '15/03/1990',
-    'telefono':     '5512345678',
-    'email':        'juan.garcia@rentiva.com',
-    'claveElector': 'GARJN90031512H800',
-    'cargo':        'Administrador',
+    'nombre': '', 'apellidos': '', 'fechaNac': '',
+    'telefono': '', 'email': '', 'claveElector': '', 'cargo': '',
   };
+
+  DatosFiscales? _fiscal;
+  DatosBancarios? _bancario;
 
   // ── Controladores ───────────────────────────────────────────────────────────
   late TextEditingController _nombreCtrl;
@@ -132,19 +114,74 @@ class _UserProfileModalState extends State<UserProfileModal> {
   late TextEditingController _rfcCtrl;
   late TextEditingController _cpCtrl;
   late TextEditingController _correoFiscalCtrl;
-  String _regimenFiscal = _mockFiscal.regimenFiscal;
-  String _usoCfdi       = _mockFiscal.usoCfdi;
+  String _regimenFiscal = '606 - Arrendamiento';
+  String _usoCfdi       = 'G03';
   bool _showFiscal      = false;
 
   // ── Controladores — DatosBancarios ────────────────────────────────────────
   late TextEditingController _clabeCtrl;
-  String _banco      = _mockBancario.banco;
+  String _banco      = 'BBVA';
   bool _showBancario = false;
 
   @override
   void initState() {
     super.initState();
     _initControllers();
+    _cargarPerfil();
+  }
+
+  Future<void> _cargarPerfil() async {
+    try {
+      final data = await ApiClient.get('/auth/me/');
+      final nombre    = data['nombre']    ?? '';
+      final apellidos = data['apellidos'] ?? '';
+      final fechaNac  = data['fecha_nacimiento'] != null
+          ? _isoADisplay(data['fecha_nacimiento'])
+          : '';
+      setState(() {
+        _userData = {
+          'nombre':       nombre,
+          'apellidos':    apellidos,
+          'fechaNac':     fechaNac,
+          'telefono':     data['telefono']  ?? '',
+          'email':        data['email']     ?? '',
+          'claveElector': data['folio_ine'] ?? '',
+          'cargo':        data['rol']       ?? 'propietario',
+        };
+        _loadingProfile = false;
+      });
+      _nombreCtrl.text       = nombre;
+      _apellidosCtrl.text    = apellidos;
+      _fechaNacCtrl.text     = fechaNac;
+      _telefonoCtrl.text     = data['telefono']  ?? '';
+      _emailCtrl.text        = data['email']     ?? '';
+      _claveElectorCtrl.text = data['folio_ine'] ?? '';
+    } catch (_) {
+      final user = await StorageService.getUser();
+      if (user != null && mounted) {
+        final parts = (user['nombre'] as String? ?? '').split(' ');
+        setState(() {
+          _userData['nombre']    = parts.isNotEmpty ? parts.first : '';
+          _userData['apellidos'] = parts.length > 1 ? parts.skip(1).join(' ') : '';
+          _userData['cargo']     = user['rol'] ?? '';
+          _loadingProfile = false;
+        });
+      } else if (mounted) {
+        setState(() => _loadingProfile = false);
+      }
+    }
+  }
+
+  String _isoADisplay(String iso) {
+    final partes = iso.split('-');
+    if (partes.length != 3) return iso;
+    return '${partes[2]}/${partes[1]}/${partes[0]}';
+  }
+
+  String _displayAIso(String display) {
+    final partes = display.split('/');
+    if (partes.length != 3) return display;
+    return '${partes[2]}-${partes[1]}-${partes[0]}';
   }
 
   void _initControllers() {
@@ -155,11 +192,11 @@ class _UserProfileModalState extends State<UserProfileModal> {
     _emailCtrl        = TextEditingController(text: _userData['email']);
     _claveElectorCtrl = TextEditingController(text: _userData['claveElector']);
     _passwordCtrl     = TextEditingController();
-    _razonSocialCtrl  = TextEditingController(text: _mockFiscal.nombreORazonSocial);
-    _rfcCtrl          = TextEditingController(text: _mockFiscal.rfc);
-    _cpCtrl           = TextEditingController(text: _mockFiscal.codigoPostal);
-    _correoFiscalCtrl = TextEditingController(text: _mockFiscal.correoFacturacion);
-    _clabeCtrl        = TextEditingController(text: _mockBancario.clabe);
+    _razonSocialCtrl  = TextEditingController(text: '');
+    _rfcCtrl          = TextEditingController(text: '');
+    _cpCtrl           = TextEditingController(text: '');
+    _correoFiscalCtrl = TextEditingController(text: '');
+    _clabeCtrl        = TextEditingController(text: '');
   }
 
   @override
@@ -203,22 +240,50 @@ class _UserProfileModalState extends State<UserProfileModal> {
     }
   }
 
-  void _handleSave() {
-    setState(() {
-      _userData = {
-        'nombre':       _nombreCtrl.text,
-        'apellidos':    _apellidosCtrl.text,
-        'fechaNac':     _fechaNacCtrl.text,
-        'telefono':     _telefonoCtrl.text,
-        'email':        _emailCtrl.text,
-        'claveElector': _claveElectorCtrl.text,
-        'cargo':        _userData['cargo']!,
+  void _handleSave() async {
+    try {
+      final body = <String, dynamic>{
+        'nombre':    _nombreCtrl.text.trim(),
+        'apellidos': _apellidosCtrl.text.trim(),
+        'telefono':  _telefonoCtrl.text.trim(),
+        'email':     _emailCtrl.text.trim(),
+        'folio_ine': _claveElectorCtrl.text.trim(),
+        if (_fechaNacCtrl.text.isNotEmpty)
+          'fecha_nacimiento': _displayAIso(_fechaNacCtrl.text),
+        if (_passwordCtrl.text.isNotEmpty)
+          'password': _passwordCtrl.text,
       };
-      _isEditing = false;
-    });
-    // TODO: PUT /api/usuarios/me/
-    // TODO: PUT /api/fiscal/{id}/
-    // TODO: PUT /api/bancario/{id}/
+      await ApiClient.patch('/auth/me/', body);
+      setState(() {
+        _userData = {
+          'nombre':       _nombreCtrl.text,
+          'apellidos':    _apellidosCtrl.text,
+          'fechaNac':     _fechaNacCtrl.text,
+          'telefono':     _telefonoCtrl.text,
+          'email':        _emailCtrl.text,
+          'claveElector': _claveElectorCtrl.text,
+          'cargo':        _userData['cargo']!,
+        };
+        _isEditing = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Perfil actualizado'), backgroundColor: Color(0xFF1695A3), behavior: SnackBarBehavior.floating),
+        );
+      }
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message), backgroundColor: Colors.red, behavior: SnackBarBehavior.floating),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error al guardar'), backgroundColor: Colors.red, behavior: SnackBarBehavior.floating),
+        );
+      }
+    }
   }
 
   void _handleCancel() {
@@ -230,14 +295,14 @@ class _UserProfileModalState extends State<UserProfileModal> {
       _emailCtrl.text        = _userData['email']!;
       _claveElectorCtrl.text = _userData['claveElector']!;
       _passwordCtrl.clear();
-      _razonSocialCtrl.text  = _mockFiscal.nombreORazonSocial;
-      _rfcCtrl.text          = _mockFiscal.rfc;
-      _cpCtrl.text           = _mockFiscal.codigoPostal;
-      _correoFiscalCtrl.text = _mockFiscal.correoFacturacion;
-      _regimenFiscal         = _mockFiscal.regimenFiscal;
-      _usoCfdi               = _mockFiscal.usoCfdi;
-      _clabeCtrl.text        = _mockBancario.clabe;
-      _banco                 = _mockBancario.banco;
+      _razonSocialCtrl.text  = _fiscal?.nombreORazonSocial ?? '';
+      _rfcCtrl.text          = _fiscal?.rfc ?? '';
+      _cpCtrl.text           = _fiscal?.codigoPostal ?? '';
+      _correoFiscalCtrl.text = _fiscal?.correoFacturacion ?? '';
+      _regimenFiscal         = _fiscal?.regimenFiscal ?? '606 - Arrendamiento';
+      _usoCfdi               = _fiscal?.usoCfdi ?? 'G03';
+      _clabeCtrl.text        = _bancario?.clabe ?? '';
+      _banco                 = _bancario?.banco ?? 'BBVA';
       _isEditing = false;
     });
   }
@@ -459,16 +524,8 @@ class _UserProfileModalState extends State<UserProfileModal> {
         ),
         if (_showBancario) ...[
           const SizedBox(height: 8),
-          _InfoRow(
-            icon: Icons.numbers_outlined,
-            label: 'CLABE Interbancaria',
-            value: _mockBancario.clabe,
-          ),
-          _InfoRow(
-            icon: Icons.account_balance_outlined,
-            label: 'Banco',
-            value: _mockBancario.banco,
-          ),
+          _InfoRow(icon: Icons.numbers_outlined,          label: 'CLABE Interbancaria', value: _bancario?.clabe ?? '—'),
+          _InfoRow(icon: Icons.account_balance_outlined,  label: 'Banco',               value: _bancario?.banco ?? '—'),
         ],
         const SizedBox(height: 12),
 
@@ -482,12 +539,12 @@ class _UserProfileModalState extends State<UserProfileModal> {
         ),
         if (_showFiscal) ...[
           const SizedBox(height: 8),
-          _InfoRow(icon: Icons.business_outlined,       label: 'Razón Social',       value: _mockFiscal.nombreORazonSocial),
-          _InfoRow(icon: Icons.fingerprint,              label: 'RFC',                value: _mockFiscal.rfc),
-          _InfoRow(icon: Icons.account_balance_outlined, label: 'Régimen Fiscal',     value: _mockFiscal.regimenFiscal),
-          _InfoRow(icon: Icons.description_outlined,     label: 'Uso CFDI',           value: _mockFiscal.usoCfdi),
-          _InfoRow(icon: Icons.location_on_outlined,     label: 'Código Postal',      value: _mockFiscal.codigoPostal),
-          _InfoRow(icon: Icons.mail_outline,             label: 'Correo Facturación', value: _mockFiscal.correoFacturacion),
+          _InfoRow(icon: Icons.business_outlined,        label: 'Razón Social',       value: _fiscal?.nombreORazonSocial ?? '—'),
+          _InfoRow(icon: Icons.fingerprint,               label: 'RFC',                value: _fiscal?.rfc ?? '—'),
+          _InfoRow(icon: Icons.account_balance_outlined,  label: 'Régimen Fiscal',     value: _fiscal?.regimenFiscal ?? '—'),
+          _InfoRow(icon: Icons.description_outlined,      label: 'Uso CFDI',           value: _fiscal?.usoCfdi ?? '—'),
+          _InfoRow(icon: Icons.location_on_outlined,      label: 'Código Postal',      value: _fiscal?.codigoPostal ?? '—'),
+          _InfoRow(icon: Icons.mail_outline,              label: 'Correo Facturación', value: _fiscal?.correoFacturacion ?? '—'),
         ],
         const SizedBox(height: 20),
 

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import '../../../core/services/api_client.dart';
 import '../../../core/widgets/app_header.dart';
 
 // ─── PANTALLA ─────────────────────────────────────────────────────────────────
@@ -76,23 +77,27 @@ class _NuevaPropiedadScreenState extends State<NuevaPropiedadScreen> {
     }
   }
 
-  void _onSubmit() {
-    if (_formKey.currentState!.validate()) {
-      // TODO: POST /api/propiedades/
-      final data = {
-        'nombre':            _nombreCtrl.text,
-        'direccion':         _direccionCtrl.text,
-        'ciudad':            _ciudadCtrl.text,
-        'estado_geografico': _estadoGeoCtrl.text,
-        'codigo_postal':     _cpCtrl.text,
-        'tipo':              _tipo,
-        'costo_renta':       _costoRentaCtrl.text,
-        'superficie_m2':     _superficieCtrl.text,
-        'descripcion':       _descripcionCtrl.text,
-        'estado':            _estado,
-      };
-      debugPrint(data.toString());
+  bool _isLoading = false;
 
+  Future<void> _onSubmit() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _isLoading = true);
+    try {
+      final body = <String, dynamic>{
+        'nombre':            _nombreCtrl.text.trim(),
+        'direccion':         _direccionCtrl.text.trim(),
+        'ciudad':            _ciudadCtrl.text.trim(),
+        'estado_geografico': _estadoGeoCtrl.text.trim(),
+        'codigo_postal':     _cpCtrl.text.trim(),
+        'tipo':              _tipo,
+        'costo_renta':       _costoRentaCtrl.text.trim(),
+        'descripcion':       _descripcionCtrl.text.trim(),
+        'estado':            _estado,
+        if (_superficieCtrl.text.isNotEmpty)
+          'superficie_m2': _superficieCtrl.text.trim(),
+      };
+      await ApiClient.post('/propiedades/', body);
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Propiedad guardada exitosamente'),
@@ -101,6 +106,18 @@ class _NuevaPropiedadScreenState extends State<NuevaPropiedadScreen> {
         ),
       );
       Navigator.pop(context);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message), backgroundColor: Colors.red, behavior: SnackBarBehavior.floating),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo conectar al servidor'), backgroundColor: Colors.red, behavior: SnackBarBehavior.floating),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -283,8 +300,10 @@ class _NuevaPropiedadScreenState extends State<NuevaPropiedadScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: _onSubmit,
-                  icon: const Icon(Icons.save_outlined, size: 20),
+                  onPressed: _isLoading ? null : _onSubmit,
+                  icon: _isLoading
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.save_outlined, size: 20),
                   label: const Text(
                     'Guardar Propiedad',
                     style: TextStyle(

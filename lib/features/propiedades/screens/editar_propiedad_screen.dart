@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import '../../../core/services/api_client.dart';
 import '../../../core/widgets/app_header.dart';
 
 // ─── DATOS EJEMPLO (reemplazar con GET /api/propiedades/{id}/) ────────────────
@@ -103,12 +104,41 @@ class _EditarPropiedadScreenState extends State<EditarPropiedadScreen> {
     {'value': 'inactiva',      'label': 'Inactiva'},
   ];
 
+  bool _loadingData = true;
+  String? _loadError;
+
   @override
   void initState() {
     super.initState();
-    // TODO: cargar desde Django → GET /api/propiedades/{id}/
-    _propiedad = _mockPropiedad;
-    _initControllers();
+    _cargarPropiedad();
+  }
+
+  Future<void> _cargarPropiedad() async {
+    if (widget.propiedadId == null) {
+      setState(() => _loadingData = false);
+      return;
+    }
+    try {
+      final data = await ApiClient.get('/propiedades/${widget.propiedadId}/');
+      _propiedad = _PropiedadEditData(
+        id:               data['id'],
+        nombre:           data['nombre'] ?? '',
+        direccion:        data['direccion'] ?? '',
+        ciudad:           data['ciudad'] ?? '',
+        estadoGeografico: data['estado_geografico'] ?? '',
+        codigoPostal:     data['codigo_postal'] ?? '',
+        tipo:             data['tipo'] ?? 'otro',
+        estado:           data['estado'] ?? 'disponible',
+        costoRenta:       double.tryParse(data['costo_renta'].toString()) ?? 0,
+        superficieM2:     data['superficie_m2'] != null ? double.tryParse(data['superficie_m2'].toString()) : null,
+        descripcion:      data['descripcion'] ?? '',
+        imagenUrl:        data['imagen'],
+      );
+      _initControllers();
+      setState(() => _loadingData = false);
+    } catch (e) {
+      setState(() { _loadError = 'No se pudo cargar la propiedad'; _loadingData = false; });
+    }
   }
 
   void _initControllers() {
@@ -151,31 +181,38 @@ class _EditarPropiedadScreenState extends State<EditarPropiedadScreen> {
     }
   }
 
-  void _onSubmit() {
-    if (_formKey.currentState!.validate()) {
-      // TODO: PUT /api/propiedades/{id}/
-      final data = {
-        'nombre':            _nombreCtrl.text,
-        'direccion':         _direccionCtrl.text,
-        'ciudad':            _ciudadCtrl.text,
-        'estado_geografico': _estadoGeoCtrl.text,
-        'codigo_postal':     _cpCtrl.text,
-        'tipo':              _tipo,
-        'costo_renta':       _costoRentaCtrl.text,
-        'superficie_m2':     _superficieCtrl.text,
-        'descripcion':       _descripcionCtrl.text,
-        'estado':            _estado,
-      };
-      debugPrint('PUT propiedad: $data');
-
+  void _onSubmit() async {
+    if (!_formKey.currentState!.validate()) return;
+    final data = {
+      'nombre':            _nombreCtrl.text,
+      'direccion':         _direccionCtrl.text,
+      'ciudad':            _ciudadCtrl.text,
+      'estado_geografico': _estadoGeoCtrl.text,
+      'codigo_postal':     _cpCtrl.text,
+      'tipo':              _tipo,
+      'costo_renta':       _costoRentaCtrl.text,
+      'superficie_m2':     _superficieCtrl.text.isNotEmpty ? _superficieCtrl.text : null,
+      'descripcion':       _descripcionCtrl.text,
+      'estado':            _estado,
+    };
+    try {
+      await ApiClient.patch('/propiedades/${widget.propiedadId}/', data);
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Propiedad actualizada correctamente'),
-          backgroundColor: Color(0xFF1695A3),
-          behavior: SnackBarBehavior.floating,
-        ),
+        const SnackBar(content: Text('Propiedad actualizada correctamente'),
+            backgroundColor: Color(0xFF1695A3), behavior: SnackBarBehavior.floating),
       );
       Navigator.pop(context);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message), backgroundColor: Colors.red, behavior: SnackBarBehavior.floating),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error al guardar'), backgroundColor: Colors.red, behavior: SnackBarBehavior.floating),
+      );
     }
   }
 
@@ -199,18 +236,27 @@ class _EditarPropiedadScreenState extends State<EditarPropiedadScreen> {
                 style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(ctx);
-              // TODO: DELETE /api/propiedades/{id}/
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Propiedad eliminada'),
-                  backgroundColor: Colors.red,
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-              Navigator.pushNamedAndRemoveUntil(
-                  context, '/propiedades', (r) => false);
+              try {
+                await ApiClient.delete('/propiedades/${widget.propiedadId}/');
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Propiedad eliminada'),
+                      backgroundColor: Colors.red, behavior: SnackBarBehavior.floating),
+                );
+                Navigator.pushNamedAndRemoveUntil(context, '/propiedades', (r) => false);
+              } on ApiException catch (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(e.message), backgroundColor: Colors.red, behavior: SnackBarBehavior.floating),
+                );
+              } catch (_) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Error al eliminar'), backgroundColor: Colors.red, behavior: SnackBarBehavior.floating),
+                );
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,

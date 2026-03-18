@@ -313,14 +313,13 @@ class _NuevoInquilinoScreenState extends State<NuevoInquilinoScreen> {
               const SizedBox(height: 12),
 
               _buildField(
-                label: 'Correo Electrónico',
+                label: 'Correo Electrónico (opcional)',
                 controller: _emailCtrl,
                 hint: 'juan@email.com',
                 icon: Icons.mail_outline,
                 keyboardType: TextInputType.emailAddress,
                 validator: (v) {
-                  if (v == null || v.isEmpty) return 'Requerido';
-                  if (!v.contains('@')) return 'Email inválido';
+                  if (v != null && v.isNotEmpty && !v.contains('@')) return 'Email inválido';
                   return null;
                 },
               ),
@@ -330,9 +329,9 @@ class _NuevoInquilinoScreenState extends State<NuevoInquilinoScreen> {
               _buildDateField(),
               const SizedBox(height: 12),
 
-              // Folio INE
+              // Folio INE (opcional)
               _buildField(
-                label: 'Folio INE / Clave Electoral',
+                label: 'Folio INE / Clave Electoral (opcional)',
                 controller: _folioIneCtrl,
                 hint: 'PELJ901012HDFRZN01',
                 icon: Icons.credit_card_outlined,
@@ -343,8 +342,7 @@ class _NuevoInquilinoScreenState extends State<NuevoInquilinoScreen> {
                   LengthLimitingTextInputFormatter(20),
                 ],
                 validator: (v) {
-                  if (v == null || v.isEmpty) return 'Requerido';
-                  if (v.length < 18) return 'Mínimo 18 caracteres';
+                  if (v != null && v.isNotEmpty && v.length < 18) return 'Mínimo 18 caracteres';
                   return null;
                 },
               ),
