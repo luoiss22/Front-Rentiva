@@ -1,12 +1,14 @@
+import 'package:flutter/foundation.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'pago_models.dart';
 
-// ─── GENERADOR PDF: FICHA DE PAGO ───────────────────────────────────────────
+// ─── GENERADOR PDF: FICHA DE PAGO ─────────────────────────────────────────── 
 class FichaPagoPdf {
   static Future<void> generar(Pago pago) async {
-    final ficha = pago.ficha;
+    try {
+      final ficha = pago.ficha;
 
     // Datos por defecto si no existe ficha asociada
     final codigo = ficha?.codigoReferencia ??
@@ -183,9 +185,13 @@ class FichaPagoPdf {
     );
 
     await Printing.layoutPdf(
-      onLayout: (format) async => pdf.save(),
-      name: 'FichaPago_${pago.periodo.replaceAll(' ', '_')}_${pago.inquilinoNombre.replaceAll(' ', '_')}.pdf',
-    );
+        onLayout: (format) async => pdf.save(),
+        name: 'FichaPago_${pago.periodo.replaceAll(' ', '_')}_${pago.inquilinoNombre.replaceAll(' ', '_')}.pdf',
+      );
+    } catch (e, stackTrace) {
+      debugPrint("Error al generar ficha de pago PDF: $e\n$stackTrace");
+      rethrow;
+    }
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────

@@ -83,6 +83,7 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
               orElse: () => NotifMedio.email,
             ),
             createdAt: DateTime.tryParse(item.fechaProgramada) ?? DateTime.now(),
+            read: item.leida,
           );
         }).toList();
         _loading = false;
@@ -112,12 +113,31 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
     }
   }
 
-  void _markAllRead() {
-    setState(() {
-      for (final n in _notifications) {
-        n.read = true;
+  Future<void> _markAllRead() async {
+    try {
+      await NotificacionesService.marcarTodasComoLeidas();
+      setState(() {
+        for (final n in _notifications) {
+          n.read = true;
+        }
+      });
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(e.message),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ));
       }
-    });
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Error al marcar todas como leídas'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    }
   }
 
   String _tiempoRelativo(DateTime fecha) {

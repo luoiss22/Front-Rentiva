@@ -15,6 +15,7 @@ class ContratoPdf {
           '${propiedad.direccion}, ${propiedad.ciudad}, ${propiedad.estadoGeografico}',
       renta: propiedad.precio,
       ciudad: propiedad.ciudad,
+      fechaInicio: inquilino.desde,
     );
   }
 
@@ -24,13 +25,17 @@ class ContratoPdf {
     required String inmuebleDireccion,
     required String renta,
     required String ciudad,
+    String? arrendador,
+    String? fechaInicio,
+    String? fechaFin,
+    String? deposito,
   }) async {
 
     final pdf = pw.Document();
     final now = DateTime.now();
 
     // ── Datos para rellenar ──────────────────────────────────────────────
-    final arrendador = 'Rentiva S.A. de C.V.';
+    final arrendadorNombre = arrendador ?? 'El Propietario';
     final fiador = '________________________';
     final dia = now.day.toString().padLeft(2, '0');
     final meses = [
@@ -39,6 +44,14 @@ class ContratoPdf {
     ];
     final mes = meses[now.month - 1];
     final anio = now.year.toString();
+
+    // Vigencia del contrato
+    final vigencia = (fechaInicio != null && fechaFin != null)
+        ? 'Del $fechaInicio al $fechaFin'
+        : (fechaInicio != null ? 'Desde $fechaInicio' : 'Según acuerdo entre las partes');
+
+    // Depósito
+    final depositoTexto = (deposito != null && deposito.isNotEmpty) ? deposito : renta;
 
     // ── Estilos ──────────────────────────────────────────────────────────
     const dark = PdfColor.fromInt(0xFF225378);
@@ -160,11 +173,12 @@ class ContratoPdf {
               children: [
                 pw.Text('DATOS DEL CONTRATO', style: subtitleStyle),
                 pw.SizedBox(height: 8),
-                _datoRow('Arrendador:', arrendador, boldBody, bodyStyle),
+                _datoRow('Arrendador:', arrendadorNombre, boldBody, bodyStyle),
                 _datoRow('Arrendatario:', arrendatario, boldBody, bodyStyle),
                 _datoRow('Fiador:', fiador, boldBody, bodyStyle),
                 _datoRow('Inmueble:', inmuebleDireccion, boldBody, bodyStyle),
                 _datoRow('Renta mensual:', renta, boldBody, bodyStyle),
+                _datoRow('Vigencia:', vigencia, boldBody, bodyStyle),
                 _datoRow('Fecha:', '$dia de $mes de $anio', boldBody, bodyStyle),
                 _datoRow('Lugar:', ciudad, boldBody, bodyStyle),
               ],
@@ -176,7 +190,7 @@ class ContratoPdf {
           pw.Text(
             'En $ciudad, siendo los $dia días del mes de $mes de $anio, '
             'se celebra el presente Contrato de Arrendamiento entre '
-            '$arrendador, como Arrendador, y $arrendatario, como '
+            '$arrendadorNombre, como Arrendador, y $arrendatario, como '
             'Arrendatario, respecto del inmueble ubicado en '
             '$inmuebleDireccion, de conformidad con lo siguiente:',
             style: bodyStyle,
@@ -265,15 +279,15 @@ class ContratoPdf {
           clausula(
             'TERCERA. DEPÓSITO EN GARANTÍA.',
             'A la fecha de firma del presente Contrato, el Arrendatario entrega al Arrendador por concepto de '
-            'depósito en garantía la cantidad de $renta, equivalente a 1 mes de renta. '
+            'depósito en garantía la cantidad de $depositoTexto. '
             'El depósito no podrá utilizarse para compensar la falta de pago de rentas. '
             'El Arrendador devolverá el depósito dentro de los sesenta días posteriores a la entrega del Inmueble.',
           ),
 
           clausula(
             'CUARTA. VIGENCIA.',
-            'La vigencia del presente Contrato es de un año forzoso para ambas partes, iniciando su vigencia '
-            'en la fecha de firma del presente Contrato. El Arrendatario deberá avisar al Arrendador con al menos '
+            'La vigencia del presente Contrato es: $vigencia. '
+            'El Arrendatario deberá avisar al Arrendador con al menos '
             'treinta días hábiles de anticipación su deseo de prorrogar o no el arrendamiento.',
           ),
 
@@ -328,7 +342,7 @@ class ContratoPdf {
 
           clausula(
             'DÉCIMA TERCERA. DOMICILIOS.',
-            'a. El Arrendador: Domicilio fiscal de $arrendador.\n'
+            'a. El Arrendador: Domicilio fiscal de $arrendadorNombre.\n'
             'b. El Arrendatario: $inmuebleDireccion.',
           ),
 
@@ -360,7 +374,7 @@ class ContratoPdf {
                 pw.Row(
                   mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
                   children: [
-                    _firmaBloque('EL ARRENDADOR', arrendador),
+                    _firmaBloque('EL ARRENDADOR', arrendadorNombre),
                     _firmaBloque('EL ARRENDATARIO', arrendatario),
                   ],
                 ),

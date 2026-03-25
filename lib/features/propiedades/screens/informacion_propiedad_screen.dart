@@ -144,6 +144,7 @@ class _InformacionPropiedadScreenState
   PropiedadDetalle? _propiedad;
   bool _loading = true;
   String? _error;
+  String? _pagosError;
 
   final List<_TabItem> _tabs = const [
     _TabItem(key: 'detalles',   label: 'Detalles'),
@@ -195,10 +196,13 @@ class _InformacionPropiedadScreenState
 
       // Pagos de la propiedad
       List<PagoResumen> pagos = [];
+      String? pagosError;
       try {
         final pagosData = await ApiClient.get('/pagos/?propiedad=${widget.propiedadId}');
-        final pagosList = pagosData is List ? pagosData : (pagosData['results'] ?? []);
-        pagos = (pagosList as List).map<PagoResumen>((p) {
+        final rawList = pagosData is List
+            ? pagosData
+            : (pagosData['results'] as List? ?? []);
+        pagos = rawList.map<PagoResumen>((p) {
           return PagoResumen(
             id: p['id'] ?? 0,
             fecha: p['fecha_pago'] ?? p['fecha_limite'] ?? '',
@@ -206,7 +210,10 @@ class _InformacionPropiedadScreenState
             status: p['estado'] ?? '',
           );
         }).toList();
-      } catch (_) {}
+      } catch (e) {
+        pagosError = e.toString();
+        debugPrint('Error cargando pagos: $e');
+      }
 
       // Inquilino activo (contrato activo de esta propiedad)
       InquilinoResumen? inquilino;
@@ -215,7 +222,11 @@ class _InformacionPropiedadScreenState
         final contratosList = contratosData is List ? contratosData : (contratosData['results'] ?? []);
         if ((contratosList as List).isNotEmpty) {
           final contrato = contratosList.first;
-          final inq = contrato['arrendatario'] ?? {};
+          final int arrendatarioId = contrato['arrendatario'];
+          
+          // Fetch full tenant details
+          final inq = await ApiClient.get('/arrendatarios/$arrendatarioId/');
+          
           final nombre = '${inq['nombre'] ?? ''} ${inq['apellidos'] ?? ''}'.trim();
           final iniciales = nombre.isNotEmpty
               ? nombre.split(' ').take(2).map((w) => w.isNotEmpty ? w[0] : '').join().toUpperCase()
@@ -229,7 +240,9 @@ class _InformacionPropiedadScreenState
             desde: contrato['fecha_inicio'] ?? '',
           );
         }
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('Error loading inquilino: $e');
+      }
 
       final costoRenta = double.tryParse(data['costo_renta'].toString()) ?? 0;
       setState(() {
@@ -250,6 +263,7 @@ class _InformacionPropiedadScreenState
           pagos: pagos,
         );
         _loading = false;
+        _pagosError = pagosError;
       });
     } catch (e) {
       setState(() { _error = 'No se pudo cargar la propiedad'; _loading = false; });
@@ -306,7 +320,7 @@ class _InformacionPropiedadScreenState
                       borderRadius: BorderRadius.circular(14),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
+                          color: Colors.black.withValues(alpha: 0.05),
                           blurRadius: 6,
                         ),
                       ],
@@ -338,7 +352,7 @@ class _InformacionPropiedadScreenState
             _TabDetalles(propiedad: propiedad),
             _TabMobiliario(propiedadId: propiedad.id, mobiliario: propiedad.mobiliario),
             _TabInquilino(propiedad: propiedad),
-            _TabPagos(pagos: propiedad.pagos),
+            _TabPagos(pagos: propiedad.pagos, errorMsg: _pagosError),
           ],
         ),
       ),
@@ -362,8 +376,8 @@ class _HeroImage extends StatelessWidget {
           Image.network(
             propiedad.imagen,
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => Container(
-              color: const Color(0xFFACF0F2).withOpacity(0.3),
+            errorBuilder: (context, error, stackTrace) => Container(
+              color: const Color(0xFFACF0F2).withValues(alpha: 0.3),
               child: const Icon(Icons.home_outlined,
                   size: 80, color: Color(0xFF1695A3)),
             ),
@@ -375,7 +389,7 @@ class _HeroImage extends StatelessWidget {
                 begin: Alignment.topCenter,
                 end: Alignment.center,
                 colors: [
-                  Colors.black.withOpacity(0.4),
+                  Colors.black.withValues(alpha: 0.4),
                   Colors.transparent,
                 ],
               ),
@@ -556,15 +570,6 @@ class _TabMobiliario extends StatelessWidget {
   const _TabMobiliario(
       {required this.propiedadId, required this.mobiliario});
 
-  Color _condicionColor(String condicion) {
-    switch (condicion.toLowerCase()) {
-      case 'excelente': return const Color(0xFF1695A3);
-      case 'bueno':     return Colors.green;
-      case 'regular':   return const Color(0xFFEB7F00);
-      default:          return Colors.red;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -599,7 +604,22 @@ class _TabMobiliario extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          ...mobiliario.map(
+          if (mobiliario.isEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 40),
+                child: Column(
+                  children: [
+                    const Icon(Icons.inventory_2_outlined, size: 48, color: Colors.grey),
+                    const SizedBox(height: 12),
+                    const Text('El inventario de esta propiedad está vacío',
+                        style: TextStyle(color: Colors.grey, fontSize: 14)),
+                  ],
+                ),
+              ),
+            )
+          else
+            ...mobiliario.map(
             (item) => Container(
               margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(12),
@@ -609,7 +629,7 @@ class _TabMobiliario extends StatelessWidget {
                 border: Border.all(color: Colors.grey.shade100),
                 boxShadow: [
                   BoxShadow(
-                      color: Colors.black.withOpacity(0.03),
+                      color: Colors.black.withValues(alpha: 0.03),
                       blurRadius: 6),
                 ],
               ),
@@ -618,7 +638,7 @@ class _TabMobiliario extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFACF0F2).withOpacity(0.3),
+                      color: const Color(0xFFACF0F2).withValues(alpha: 0.3),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Icon(Icons.inventory_2_outlined,
@@ -712,7 +732,7 @@ class _TabInquilino extends StatelessWidget {
                 border: Border.all(color: Colors.white, width: 4),
                 boxShadow: [
                   BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
+                      color: Colors.black.withValues(alpha: 0.1),
                       blurRadius: 8)
                 ],
               ),
@@ -812,7 +832,8 @@ class _TabInquilino extends StatelessWidget {
 // ─── TAB: PAGOS ───────────────────────────────────────────────────────────────
 class _TabPagos extends StatelessWidget {
   final List<PagoResumen> pagos;
-  const _TabPagos({required this.pagos});
+  final String? errorMsg;
+  const _TabPagos({required this.pagos, this.errorMsg});
 
   @override
   Widget build(BuildContext context) {
@@ -828,87 +849,102 @@ class _TabPagos extends StatelessWidget {
                       color: Color(0xFF225378),
                       fontWeight: FontWeight.bold,
                       fontSize: 15)),
-              GestureDetector(
-                onTap: () {},
-                child: const Row(
-                  children: [
-                    Icon(Icons.notifications_outlined,
-                        color: Color(0xFFEB7F00), size: 16),
-                    SizedBox(width: 4),
-                    Text('Recordar Pago',
-                        style: TextStyle(
-                            color: Color(0xFFEB7F00),
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13)),
-                  ],
-                ),
-              ),
             ],
           ),
           const SizedBox(height: 10),
-          ...pagos.map(
-            (pago) => Container(
-              margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(14),
-                border: Border(
-                  left: const BorderSide(
-                      color: Color(0xFF1695A3), width: 4),
-                  top: BorderSide(color: Colors.grey.shade100),
-                  right: BorderSide(color: Colors.grey.shade100),
-                  bottom: BorderSide(color: Colors.grey.shade100),
+          if (errorMsg != null)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 40),
+                child: Column(
+                  children: [
+                    const Icon(Icons.error_outline, size: 40, color: Colors.red),
+                    const SizedBox(height: 12),
+                    Text(errorMsg!, style: const TextStyle(color: Colors.red, fontSize: 13)),
+                  ],
                 ),
-                boxShadow: [
-                  BoxShadow(
-                      color: Colors.black.withOpacity(0.03),
-                      blurRadius: 6),
-                ],
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(pago.monto,
-                          style: const TextStyle(
-                              color: Color(0xFF225378),
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15)),
-                      const SizedBox(height: 3),
-                      Row(
-                        children: [
-                          const Icon(Icons.calendar_today,
-                              size: 11, color: Colors.grey),
-                          const SizedBox(width: 4),
-                          Text(pago.fecha,
-                              style: const TextStyle(
-                                  color: Colors.grey, fontSize: 11)),
-                        ],
+            )
+          else if (pagos.isEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 40),
+                child: Column(
+                  children: [
+                    const Icon(Icons.receipt_long_outlined, size: 48, color: Colors.grey),
+                    const SizedBox(height: 12),
+                    const Text('No hay pagos registrados para esta propiedad',
+                        style: TextStyle(color: Colors.grey, fontSize: 14)),
+                  ],
+                ),
+              ),
+            )
+          else
+            ...pagos.map((pago) {
+              return Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.03),
+                        blurRadius: 6),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      border: Border(
+                        left: BorderSide(color: Color(0xFF1695A3), width: 4),
                       ),
-                    ],
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                          color: const Color(0xFFACF0F2)),
                     ),
-                    child: Text(pago.status,
-                        style: const TextStyle(
-                            color: Color(0xFF1695A3),
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold)),
+                    padding: const EdgeInsets.all(14),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(pago.monto,
+                                style: const TextStyle(
+                                    color: Color(0xFF225378),
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15)),
+                            const SizedBox(height: 3),
+                            Row(
+                              children: [
+                                const Icon(Icons.calendar_today,
+                                    size: 11, color: Colors.grey),
+                                const SizedBox(width: 4),
+                                Text(pago.fecha,
+                                    style: const TextStyle(
+                                        color: Colors.grey, fontSize: 11)),
+                              ],
+                            ),
+                          ],
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: const Color(0xFFACF0F2)),
+                          ),
+                          child: Text(pago.status,
+                              style: const TextStyle(
+                                  color: Color(0xFF1695A3),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
                   ),
-                ],
-              ),
-            ),
-          ),
+                ),
+              );
+            }),
         ],
       ),
     );
@@ -931,7 +967,7 @@ class _Card extends StatelessWidget {
         border: Border.all(color: Colors.grey.shade100),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.04), blurRadius: 8),
+              color: Colors.black.withValues(alpha: 0.04), blurRadius: 8),
         ],
       ),
       child: child,

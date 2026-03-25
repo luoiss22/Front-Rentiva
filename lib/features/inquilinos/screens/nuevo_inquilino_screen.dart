@@ -127,13 +127,19 @@ class _NuevoInquilinoScreenState extends State<NuevoInquilinoScreen> {
 
   Future<void> _pickFechaContrato(bool isInicio) async {
     final now = DateTime.now();
+    // La fecha de fin no puede ser anterior ni igual a la de inicio
+    final firstDate = isInicio
+        ? DateTime(2020)
+        : (_fechaInicio != null
+            ? _fechaInicio!.add(const Duration(days: 1))
+            : DateTime(2020));
     final initial = isInicio
         ? (_fechaInicio ?? now)
-        : (_fechaFin ?? now.add(const Duration(days: 365)));
+        : (_fechaFin ?? (firstDate.isAfter(now) ? firstDate : now.add(const Duration(days: 365))));
     final picked = await showDatePicker(
       context: context,
-      initialDate: initial,
-      firstDate: DateTime(2020),
+      initialDate: initial.isBefore(firstDate) ? firstDate : initial,
+      firstDate: firstDate,
       lastDate: DateTime(2035),
       builder: (context, child) => Theme(
         data: Theme.of(context).copyWith(
@@ -151,9 +157,9 @@ class _NuevoInquilinoScreenState extends State<NuevoInquilinoScreen> {
       setState(() {
         if (isInicio) {
           _fechaInicio = picked;
-          // auto-ajusta fin si es anterior al inicio
-          if (_fechaFin != null && _fechaFin!.isBefore(picked)) {
-            _fechaFin = picked.add(const Duration(days: 365));
+          // Si el fin ya estaba puesto y ahora es igual o anterior al nuevo inicio, se limpia
+          if (_fechaFin != null && !_fechaFin!.isAfter(picked)) {
+            _fechaFin = null;
           }
         } else {
           _fechaFin = picked;
@@ -186,10 +192,31 @@ class _NuevoInquilinoScreenState extends State<NuevoInquilinoScreen> {
 
   void _onSubmit() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_propiedadId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Debes seleccionar una propiedad a rentar'),
+          backgroundColor: Colors.red.shade400,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    if (_fechaInicio == null || _fechaFin == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Debes seleccionar las fechas de inicio y fin del contrato'),
+          backgroundColor: Colors.red.shade400,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
     if (_isLoading) return;
 
     setState(() => _isLoading = true);
 
+    int? arrendatarioIdCreado;
     try {
       // 1. Crear arrendatario
       final arrendatario = await ArrendatariosService.crear({
@@ -203,6 +230,26 @@ class _NuevoInquilinoScreenState extends State<NuevoInquilinoScreen> {
         'hijos':            _hijos,
         'estado':           _estado,
       });
+
+      arrendatarioIdCreado = arrendatario.id;
+
+      // 1.5. Crear Datos Fiscales si aplican
+      if (_fiscalRfcCtrl.text.trim().isNotEmpty || _fiscalRazonSocialCtrl.text.trim().isNotEmpty) {
+        try {
+          await ApiClient.post('/datos-fiscales/', {
+            'tipo_entidad': 'arrendatario',
+            'entidad_id': arrendatario.id,
+            'nombre_o_razon_social': _fiscalRazonSocialCtrl.text.trim(),
+            'rfc': _fiscalRfcCtrl.text.trim().toUpperCase(),
+            'regimen_fiscal': _fiscalRegimen,
+            'uso_cfdi': _fiscalUsoCfdi,
+            'codigo_postal': _fiscalCpCtrl.text.trim(),
+            'correo_facturacion': _fiscalCorreoCtrl.text.trim(),
+          });
+        } catch (e) {
+          debugPrint("Error guardando datos fiscales: $e");
+        }
+      }
 
       // 2. Crear contrato si se seleccionó propiedad y fechas
       if (_propiedadId != null && _fechaInicio != null && _fechaFin != null) {
@@ -232,15 +279,21 @@ class _NuevoInquilinoScreenState extends State<NuevoInquilinoScreen> {
       );
       Navigator.pop(context);
     } on ApiException catch (e) {
+      if (arrendatarioIdCreado != null) {
+        try { await ArrendatariosService.eliminar(arrendatarioIdCreado); } catch (_) {}
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e.message),
+          content: Text('Error al crear contrato: ${e.message}'),
           backgroundColor: Colors.red.shade400,
           behavior: SnackBarBehavior.floating,
         ),
       );
     } catch (_) {
+      if (arrendatarioIdCreado != null) {
+        try { await ArrendatariosService.eliminar(arrendatarioIdCreado); } catch (_) {}
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

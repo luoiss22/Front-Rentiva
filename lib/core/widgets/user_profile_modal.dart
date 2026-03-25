@@ -100,6 +100,8 @@ class _UserProfileModalState extends State<UserProfileModal> {
   DatosFiscales? _fiscal;
   DatosBancarios? _bancario;
 
+  int? _userId;
+
   // ── Controladores ───────────────────────────────────────────────────────────
   late TextEditingController _nombreCtrl;
   late TextEditingController _apellidosCtrl;
@@ -133,6 +135,7 @@ class _UserProfileModalState extends State<UserProfileModal> {
   Future<void> _cargarPerfil() async {
     try {
       final data = await ApiClient.get('/auth/me/');
+      if (mounted) setState(() => _userId = data['id']);
       final nombre    = data['nombre']    ?? '';
       final apellidos = data['apellidos'] ?? '';
       final fechaNac  = data['fecha_nacimiento'] != null
@@ -156,6 +159,46 @@ class _UserProfileModalState extends State<UserProfileModal> {
       _telefonoCtrl.text     = data['telefono']  ?? '';
       _emailCtrl.text        = data['email']     ?? '';
       _claveElectorCtrl.text = data['folio_ine'] ?? '';
+
+      if (_userId != null) {
+        try {
+          final res = await ApiClient.get('/datos-fiscales/?tipo_entidad=propietario&entidad_id=$_userId');
+          if (res['results'] != null && res['results'].isNotEmpty) {
+            final f = res['results'][0];
+            setState(() {
+              _fiscal = DatosFiscales(
+                id: f['id'],
+                nombreORazonSocial: f['nombre_o_razon_social'] ?? '',
+                rfc: f['rfc'] ?? '',
+                regimenFiscal: f['regimen_fiscal'] ?? '',
+                usoCfdi: f['uso_cfdi'] ?? '',
+                codigoPostal: f['codigo_postal'] ?? '',
+                correoFacturacion: f['correo_facturacion'] ?? '',
+              );
+              _razonSocialCtrl.text = _fiscal!.nombreORazonSocial;
+              _rfcCtrl.text = _fiscal!.rfc;
+              _cpCtrl.text = _fiscal!.codigoPostal;
+              _correoFiscalCtrl.text = _fiscal!.correoFacturacion;
+              
+              if (_fiscal!.regimenFiscal.isNotEmpty) {
+                if (_regimenesFiscales.contains(_fiscal!.regimenFiscal)) {
+                  _regimenFiscal = _fiscal!.regimenFiscal;
+                } else {
+                  final match = _regimenesFiscales.where((r) => r.startsWith(_fiscal!.regimenFiscal)).firstOrNull;
+                  if (match != null) _regimenFiscal = match;
+                }
+              }
+              
+              if (_fiscal!.usoCfdi.isNotEmpty) {
+                final exists = _usosCfdi.any((u) => u['value'] == _fiscal!.usoCfdi);
+                if (exists) {
+                  _usoCfdi = _fiscal!.usoCfdi;
+                }
+              }
+            });
+          }
+        } catch (_) {}
+      }
     } catch (_) {
       final user = await StorageService.getUser();
       if (user != null && mounted) {
@@ -250,10 +293,42 @@ class _UserProfileModalState extends State<UserProfileModal> {
         'folio_ine': _claveElectorCtrl.text.trim(),
         if (_fechaNacCtrl.text.isNotEmpty)
           'fecha_nacimiento': _displayAIso(_fechaNacCtrl.text),
-        if (_passwordCtrl.text.isNotEmpty)
-          'password': _passwordCtrl.text,
       };
+      // ignore: avoid_print
+      print('[Profile] _handleSave body: $body');
+      // ignore: avoid_print
+      print('[Profile] _userId: $_userId');
       await ApiClient.patch('/auth/me/', body);
+
+      // Guardar Datos Fiscales
+      if (_userId != null) {
+        final bodyFiscal = {
+          'tipo_entidad': 'propietario',
+          'entidad_id': _userId,
+          'nombre_o_razon_social': _razonSocialCtrl.text.trim(),
+          'rfc': _rfcCtrl.text.trim().toUpperCase(),
+          'regimen_fiscal': _regimenFiscal,
+          'uso_cfdi': _usoCfdi,
+          'codigo_postal': _cpCtrl.text.trim(),
+          'correo_facturacion': _correoFiscalCtrl.text.trim(),
+        };
+
+        if (_fiscal != null && _fiscal!.id != null) {
+          await ApiClient.patch('/datos-fiscales/${_fiscal!.id}/', bodyFiscal);
+        } else {
+          final nf = await ApiClient.post('/datos-fiscales/', bodyFiscal);
+          _fiscal = DatosFiscales(
+            id: nf['id'],
+            nombreORazonSocial: nf['nombre_o_razon_social'] ?? '',
+            rfc: nf['rfc'] ?? '',
+            regimenFiscal: nf['regimen_fiscal'] ?? '',
+            usoCfdi: nf['uso_cfdi'] ?? '',
+            codigoPostal: nf['codigo_postal'] ?? '',
+            correoFacturacion: nf['correo_facturacion'] ?? '',
+          );
+        }
+      }
+
       setState(() {
         _userData = {
           'nombre':       _nombreCtrl.text,
@@ -272,12 +347,16 @@ class _UserProfileModalState extends State<UserProfileModal> {
         );
       }
     } on ApiException catch (e) {
+      // ignore: avoid_print
+      print('[Profile] ApiException ${e.statusCode}: ${e.message}');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(e.message), backgroundColor: Colors.red, behavior: SnackBarBehavior.floating),
         );
       }
-    } catch (_) {
+    } catch (e, st) {
+      // ignore: avoid_print
+      print('[Profile] catch generico: $e\n$st');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Error al guardar'), backgroundColor: Colors.red, behavior: SnackBarBehavior.floating),
@@ -299,8 +378,23 @@ class _UserProfileModalState extends State<UserProfileModal> {
       _rfcCtrl.text          = _fiscal?.rfc ?? '';
       _cpCtrl.text           = _fiscal?.codigoPostal ?? '';
       _correoFiscalCtrl.text = _fiscal?.correoFacturacion ?? '';
-      _regimenFiscal         = _fiscal?.regimenFiscal ?? '606 - Arrendamiento';
-      _usoCfdi               = _fiscal?.usoCfdi ?? 'G03';
+      
+      String rf = _fiscal?.regimenFiscal ?? '';
+      if (rf.isNotEmpty && !_regimenesFiscales.contains(rf)) {
+        rf = _regimenesFiscales.where((r) => r.startsWith(rf)).firstOrNull ?? '606 - Arrendamiento';
+      } else if (rf.isEmpty) {
+        rf = '606 - Arrendamiento';
+      }
+      _regimenFiscal = rf;
+
+      String uc = _fiscal?.usoCfdi ?? '';
+      if (uc.isNotEmpty && !_usosCfdi.any((u) => u['value'] == uc)) {
+        uc = 'G03';
+      } else if (uc.isEmpty) {
+        uc = 'G03';
+      }
+      _usoCfdi = uc;
+      
       _clabeCtrl.text        = _bancario?.clabe ?? '';
       _banco                 = _bancario?.banco ?? 'BBVA';
       _isEditing = false;
@@ -648,15 +742,6 @@ class _UserProfileModalState extends State<UserProfileModal> {
             FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]')),
             UpperCaseTextFormatter(),
           ],
-        ),
-        const SizedBox(height: 12),
-
-        // Contraseña
-        _PasswordField(
-          controller: _passwordCtrl,
-          obscure: _obscurePassword,
-          onToggle: () =>
-              setState(() => _obscurePassword = !_obscurePassword),
         ),
         const SizedBox(height: 20),
 

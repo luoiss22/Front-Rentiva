@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'dart:async';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/widgets/app_header.dart';
 import '../../../core/widgets/bottom_navbar.dart';
@@ -63,6 +64,7 @@ class _InquilinosScreenState extends State<InquilinosScreen> {
   final int _navIndex = 2;
   final TextEditingController _searchCtrl = TextEditingController();
   String _searchTerm = '';
+  Timer? _debounceTimer;
   late Future<List<ArrendatarioItem>> _futuro;
 
   @override
@@ -81,6 +83,7 @@ class _InquilinosScreenState extends State<InquilinosScreen> {
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -117,10 +120,16 @@ class _InquilinosScreenState extends State<InquilinosScreen> {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: TextField(
               controller: _searchCtrl,
-              onSubmitted: (_) => _recargar(),
+              onSubmitted: (_) {
+                _debounceTimer?.cancel();
+                _recargar();
+              },
               onChanged: (v) {
+                _debounceTimer?.cancel();
                 setState(() => _searchTerm = v);
-                if (v.isEmpty) _recargar();
+                _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+                  _recargar();
+                });
               },
               style: const TextStyle(
                   color: Color(0xFF225378), fontSize: 14),
@@ -286,6 +295,9 @@ class _InquilinoCard extends StatelessWidget {
                           color: Color(0xFF225378),
                           fontWeight: FontWeight.bold,
                           fontSize: 14)),
+                  const SizedBox(height: 2),
+                  Text(a.propiedadActual,
+                      style: const TextStyle(color: Color(0xFF1695A3), fontSize: 13, fontWeight: FontWeight.w500)),
                   const SizedBox(height: 2),
                   Text(a.email,
                       style: const TextStyle(color: Colors.grey, fontSize: 12)),

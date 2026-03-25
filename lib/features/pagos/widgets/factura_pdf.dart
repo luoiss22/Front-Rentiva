@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -6,9 +7,27 @@ import 'pago_models.dart';
 // ─── GENERADOR PDF: FACTURA (CFDI) ──────────────────────────────────────────
 class FacturaPdf {
   static Future<void> generar(Pago pago) async {
-    final factura = pago.factura;
-    if (factura == null) return;
+    try {
+      final factura = pago.factura;
+      if (factura == null) return;
+      await _buildAndPrint(pago, factura);
+    } catch (e, stackTrace) {
+      debugPrint("Error al generar factura PDF: $e\n$stackTrace");
+      rethrow;
+    }
+  }
 
+  /// Genera el PDF con una Factura ya creada (no necesita pago.factura).
+  static Future<void> generarConDatos(Pago pago, Factura factura) async {
+    try {
+      await _buildAndPrint(pago, factura);
+    } catch (e, stackTrace) {
+      debugPrint("Error al generar factura PDF: $e\n$stackTrace");
+      rethrow;
+    }
+  }
+
+  static Future<void> _buildAndPrint(Pago pago, Factura factura) async {
     final pdf = pw.Document();
     final now = DateTime.now();
 
@@ -194,9 +213,9 @@ class FacturaPdf {
     );
 
     await Printing.layoutPdf(
-      onLayout: (format) async => pdf.save(),
-      name: 'Factura_${pago.periodo.replaceAll(' ', '_')}_${pago.inquilinoNombre.replaceAll(' ', '_')}.pdf',
-    );
+        onLayout: (format) async => pdf.save(),
+        name: 'Factura_${pago.periodo.replaceAll(' ', '_')}_${pago.inquilinoNombre.replaceAll(' ', '_')}.pdf',
+      );
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────

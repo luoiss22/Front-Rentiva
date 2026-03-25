@@ -25,6 +25,7 @@ class _NuevoContratoScreenState extends State<NuevoContratoScreen> {
   String _periodoPago = 'mensual';
 
   final _rentaCtrl      = TextEditingController();
+  final _diaPagoCtrl    = TextEditingController();
   final _fechaInicioCtrl = TextEditingController();
   final _fechaFinCtrl    = TextEditingController();
   final _depositoCtrl   = TextEditingController();
@@ -57,6 +58,7 @@ class _NuevoContratoScreenState extends State<NuevoContratoScreen> {
   @override
   void dispose() {
     _rentaCtrl.dispose();
+    _diaPagoCtrl.dispose();
     _fechaInicioCtrl.dispose();
     _fechaFinCtrl.dispose();
     _depositoCtrl.dispose();
@@ -98,6 +100,7 @@ class _NuevoContratoScreenState extends State<NuevoContratoScreen> {
         'fecha_inicio':  _fechaInicioCtrl.text,
         'fecha_fin':     _fechaFinCtrl.text,
         'renta_acordada': _rentaCtrl.text,
+        'dia_pago':      int.parse(_diaPagoCtrl.text),
         'periodo_pago':  _periodoPago,
         if (_depositoCtrl.text.isNotEmpty)
           'deposito': _depositoCtrl.text,
@@ -203,12 +206,21 @@ class _NuevoContratoScreenState extends State<NuevoContratoScreen> {
                       decoration: _inputDeco('Fecha fin',
                           Icons.calendar_today),
                       onTap: () => _seleccionarFecha(_fechaFinCtrl),
-                      validator: (v) =>
-                          v == null || v.isEmpty ? 'Requerido' : null,
+                      validator: (v) {
+                        if (v == null || v.isEmpty) return 'Requerido';
+                        if (_fechaInicioCtrl.text.isNotEmpty) {
+                          final inicio = DateTime.tryParse(_fechaInicioCtrl.text);
+                          final fin    = DateTime.tryParse(v);
+                          if (inicio != null && fin != null && !fin.isAfter(inicio)) {
+                            return 'Debe ser posterior a la fecha de inicio';
+                          }
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 12),
 
-                    // Renta y periodo
+                    // Renta, día y periodo
                     Row(
                       children: [
                         Expanded(
@@ -223,6 +235,22 @@ class _NuevoContratoScreenState extends State<NuevoContratoScreen> {
                                 v == null || v.isEmpty
                                     ? 'Requerido'
                                     : null,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: TextFormField(
+                            controller: _diaPagoCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: _inputDeco('Día pago',
+                                Icons.calendar_today),
+                            validator: (v) {
+                              if (v == null || v.isEmpty) return 'Req.';
+                              final val = int.tryParse(v);
+                              if (val == null || val < 1 || val > 31) return '1-31';
+                              return null;
+                            },
                           ),
                         ),
                         const SizedBox(width: 12),

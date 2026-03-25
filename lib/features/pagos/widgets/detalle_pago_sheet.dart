@@ -1,16 +1,104 @@
 import 'package:flutter/material.dart';
+import '../../../core/services/api_client.dart';
 import 'pago_models.dart';
 import 'factura_pdf.dart';
 import 'ficha_pago_pdf.dart';
 
 // ─── BOTTOM SHEET DETALLE PAGO ────────────────────────────────────────────────
-class DetallePagoSheet extends StatelessWidget {
+class DetallePagoSheet extends StatefulWidget {
   final Pago pago;
   final VoidCallback? onMarcarRecibido;
   const DetallePagoSheet({super.key, required this.pago, this.onMarcarRecibido});
 
   @override
+  State<DetallePagoSheet> createState() => _DetallePagoSheetState();
+}
+
+class _DetallePagoSheetState extends State<DetallePagoSheet> {
+  Factura? _facturaLocal;   // factura recién creada en esta sesión
+  bool _generando = false;
+
+  Factura? get _factura => widget.pago.factura ?? _facturaLocal;
+
+  // ── Helpers de UI ──────────────────────────────────────────────────────────
+  void _snack(String msg, Color color, {int segundos = 4}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      backgroundColor: color,
+      duration: Duration(seconds: segundos),
+    ));
+  }
+
+  // ── Lógica: generar factura ────────────────────────────────────────────────
+  Future<void> _generarFactura() async {
+    final faltantes = widget.pago.datosFiscalesFaltantes;
+
+    if (faltantes.isNotEmpty) {
+      String mensaje;
+      if (faltantes.contains('inquilino') && faltantes.contains('propietario')) {
+        mensaje = 'Faltan datos fiscales del inquilino (${widget.pago.inquilinoNombre}) '
+            'y del propietario. Registra RFC, Régimen Fiscal, Uso CFDI y '
+            'Código Postal de ambos para generar la factura.';
+      } else if (faltantes.contains('inquilino')) {
+        mensaje = 'Faltan datos fiscales del inquilino: ${widget.pago.inquilinoNombre}. '
+            'Registra su RFC, Régimen Fiscal, Uso CFDI y Código Postal para continuar.';
+      } else {
+        mensaje = 'Faltan tus datos fiscales como propietario/arrendador. '
+            'Regístralos en tu perfil (RFC, Régimen Fiscal, Uso CFDI y '
+            'Código Postal) para poder generar la factura.';
+      }
+      _snack(mensaje, const Color(0xFFEB7F00), segundos: 6);
+      return;
+    }
+
+    setState(() => _generando = true);
+    _snack('Generando factura...', const Color(0xFF1695A3), segundos: 20);
+
+    try {
+      final subtotal = widget.pago.monto;
+      final iva     = double.parse((subtotal * 0.16).toStringAsFixed(2));
+      final total   = double.parse((subtotal + iva).toStringAsFixed(2));
+
+      final data = await ApiClient.post('/facturas/', {
+        'pago'         : widget.pago.id,
+        'folio_fiscal' : 'CFDI-${widget.pago.id}-${DateTime.now().millisecondsSinceEpoch}',
+        'subtotal'     : subtotal.toString(),
+        'iva'          : iva.toString(),
+        'total'        : total.toString(),
+        'fecha_emision': DateTime.now().toIso8601String(),
+      });
+
+      final facturaCreada = Factura.fromJson(data);
+      setState(() { _facturaLocal = facturaCreada; _generando = false; });
+
+      _snack('Factura creada. Abriendo PDF...', const Color(0xFF1695A3));
+      await FacturaPdf.generarConDatos(widget.pago, facturaCreada);
+
+      if (mounted) _snack('Factura generada correctamente.', const Color(0xFF15803D));
+    } catch (e) {
+      if (mounted) {
+        setState(() => _generando = false);
+        _snack('Error al generar la factura: $e', Colors.red, segundos: 6);
+      }
+    }
+  }
+
+  // ── Lógica: ver factura existente ──────────────────────────────────────────
+  Future<void> _verFactura() async {
+    final factura = _factura;
+    if (factura == null) return;
+    try {
+      await FacturaPdf.generarConDatos(widget.pago, factura);
+    } catch (e) {
+      _snack('Error al generar PDF: $e', Colors.red);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final pago = widget.pago;
     return DraggableScrollableSheet(
       initialChildSize: 0.6,
       maxChildSize: 0.92,
@@ -34,7 +122,6 @@ class DetallePagoSheet extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 20),
-
               // Encabezado
               Row(
                 children: [
@@ -44,8 +131,7 @@ class DetallePagoSheet extends StatelessWidget {
                       color: pago.estado.bgColor,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Icon(pago.estado.icon,
-                        color: pago.estado.textColor, size: 24),
+                    child: Icon(pago.estado.icon, color: pago.estado.textColor, size: 24),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -58,8 +144,7 @@ class DetallePagoSheet extends StatelessWidget {
                                 fontWeight: FontWeight.bold,
                                 fontSize: 16)),
                         Text(pago.periodo,
-                            style: const TextStyle(
-                                color: Colors.grey, fontSize: 13)),
+                            style: const TextStyle(color: Colors.grey, fontSize: 13)),
                       ],
                     ),
                   ),
@@ -72,8 +157,7 @@ class DetallePagoSheet extends StatelessWidget {
                               fontWeight: FontWeight.bold,
                               fontSize: 20)),
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 3),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                         decoration: BoxDecoration(
                           color: pago.estado.bgColor,
                           borderRadius: BorderRadius.circular(10),
@@ -91,20 +175,18 @@ class DetallePagoSheet extends StatelessWidget {
               const SizedBox(height: 20),
               Divider(color: Colors.grey.shade100),
               const SizedBox(height: 12),
-
               // Detalles del pago
               _sheetTitle('Detalles del Pago'),
               const SizedBox(height: 10),
               _detailRow('Fecha límite', pago.fechaLimiteFormateada),
               if (pago.fechaPago != null)
                 _detailRow('Fecha de pago',
-                    '${pago.fechaPago!.day.toString().padLeft(2, '0')}/'
-                    '${pago.fechaPago!.month.toString().padLeft(2, '0')}/'
+                    '${pago.fechaPago!.day.toString().padLeft(2,'0')}/'
+                    '${pago.fechaPago!.month.toString().padLeft(2,'0')}/'
                     '${pago.fechaPago!.year}'),
               if (pago.metodoPago != null)
                 _detailRow('Método de pago',
-                    pago.metodoPago!.name[0].toUpperCase() +
-                        pago.metodoPago!.name.substring(1)),
+                    pago.metodoPago!.name[0].toUpperCase() + pago.metodoPago!.name.substring(1)),
               if (pago.referencia.isNotEmpty)
                 _detailRow('Referencia', pago.referencia),
               if (pago.recargaMora > 0)
@@ -115,44 +197,59 @@ class DetallePagoSheet extends StatelessWidget {
               // Ficha de pago
               if (pago.ficha != null) ...[
                 const SizedBox(height: 16),
-                _sheetTitle('Ficha de Pago'),
+                _sheetTitle('Formato de Pago'),
                 const SizedBox(height: 10),
                 _detailRow('Referencia', pago.ficha!.codigoReferencia),
                 _detailRow('CLABE', pago.ficha!.clabeInterbancaria),
                 _detailRow('Banco', pago.ficha!.banco),
-                _pdfBtn(context, 'Descargar Ficha PDF',
-                    Icons.picture_as_pdf_outlined,
-                    () => FichaPagoPdf.generar(pago)),
-              ]
-              else if (pago.estado == PagoEstado.pendiente ||
-                       pago.estado == PagoEstado.vencido) ...[
+                _pdfBtn('Ver Formato de Pago', Icons.picture_as_pdf_outlined, () async {
+                  try {
+                    await FichaPagoPdf.generar(pago);
+                  } catch (e) {
+                    _snack('Error al generar PDF: $e', Colors.red);
+                  }
+                }),
+              ] else if (pago.estado == PagoEstado.pendiente ||
+                         pago.estado == PagoEstado.vencido) ...[
                 const SizedBox(height: 16),
-                _pdfBtn(context, 'Descargar Ficha PDF',
-                    Icons.picture_as_pdf_outlined,
-                    () => FichaPagoPdf.generar(pago)),
+                _pdfBtn('Generar Formato de Pago', Icons.download_outlined, () async {
+                  _snack('Verificando datos y generando formato...', const Color(0xFF1695A3));
+                  try {
+                    await FichaPagoPdf.generar(pago);
+                  } catch (e) {
+                    _snack('Error al generar PDF: $e', Colors.red);
+                  }
+                }),
               ],
 
-              // Factura
-              if (pago.factura != null) ...[
+              // ── Factura ──────────────────────────────────────────────────
+              if (_factura != null) ...[
                 const SizedBox(height: 16),
                 _sheetTitle('Factura CFDI'),
                 const SizedBox(height: 10),
-                _detailRow('Folio Fiscal', pago.factura!.folioFiscal,
-                    small: true),
-                _detailRow('Subtotal',
-                    '\$${pago.factura!.subtotal.toStringAsFixed(2)}'),
-                _detailRow('IVA',
-                    '\$${pago.factura!.iva.toStringAsFixed(2)}'),
-                _detailRow('Total',
-                    '\$${pago.factura!.total.toStringAsFixed(2)}',
+                _detailRow('Folio Fiscal', _factura!.folioFiscal, small: true),
+                _detailRow('Subtotal', '\$${_factura!.subtotal.toStringAsFixed(2)}'),
+                _detailRow('IVA',      '\$${_factura!.iva.toStringAsFixed(2)}'),
+                _detailRow('Total',    '\$${_factura!.total.toStringAsFixed(2)}',
                     valueColor: const Color(0xFF225378)),
-                _pdfBtn(context, 'Descargar Factura PDF',
-                    Icons.picture_as_pdf_outlined,
-                    () => FacturaPdf.generar(pago)),
+                _pdfBtn('Ver Factura', Icons.picture_as_pdf_outlined, _verFactura),
+              ] else if (pago.estado != PagoEstado.cancelado) ...[
+                const SizedBox(height: 16),
+                _generando
+                    ? const Center(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          child: CircularProgressIndicator(
+                            color: Color(0xFF1695A3),
+                            strokeWidth: 2,
+                          ),
+                        ),
+                      )
+                    : _pdfBtn('Generar Factura', Icons.receipt_outlined, _generarFactura),
               ],
 
               // Botón marcar como recibido
-              if (onMarcarRecibido != null &&
+              if (widget.onMarcarRecibido != null &&
                   (pago.estado == PagoEstado.pendiente ||
                       pago.estado == PagoEstado.vencido)) ...[
                 const SizedBox(height: 24),
@@ -161,7 +258,7 @@ class DetallePagoSheet extends StatelessWidget {
                   child: ElevatedButton.icon(
                     onPressed: () {
                       Navigator.pop(context);
-                      onMarcarRecibido!();
+                      widget.onMarcarRecibido!();
                     },
                     icon: const Icon(Icons.check_circle_outline, size: 18),
                     label: const Text('Marcar como Recibido'),
@@ -184,23 +281,21 @@ class DetallePagoSheet extends StatelessWidget {
     );
   }
 
-  static Widget _sheetTitle(String title) {
+  // ── Widgets estáticos ─────────────────────────────────────────────────────
+  Widget _sheetTitle(String title) {
     return Text(title,
         style: const TextStyle(
-            color: Color(0xFF225378),
-            fontWeight: FontWeight.bold,
-            fontSize: 14));
+            color: Color(0xFF225378), fontWeight: FontWeight.bold, fontSize: 14));
   }
 
-  static Widget _detailRow(String label, String value,
+  Widget _detailRow(String label, String value,
       {Color? valueColor, bool small = false}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label,
-              style: const TextStyle(color: Colors.grey, fontSize: 12)),
+          Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
           Flexible(
             child: Text(value,
                 textAlign: TextAlign.right,
@@ -214,8 +309,7 @@ class DetallePagoSheet extends StatelessWidget {
     );
   }
 
-  static Widget _pdfBtn(
-      BuildContext context, String label, IconData icon, VoidCallback onTap) {
+  Widget _pdfBtn(String label, IconData icon, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
       child: Container(

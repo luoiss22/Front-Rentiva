@@ -5,6 +5,7 @@ import '../../core/services/api_client.dart';
 class PagoItem {
   final int id;
   final int contratoId;
+  final String inquilinoNombre;
   final String periodo;
   final double monto;
   final String fechaLimite;
@@ -15,6 +16,7 @@ class PagoItem {
   const PagoItem({
     required this.id,
     required this.contratoId,
+    required this.inquilinoNombre,
     required this.periodo,
     required this.monto,
     required this.fechaLimite,
@@ -27,6 +29,7 @@ class PagoItem {
     return PagoItem(
       id: json['id'] as int,
       contratoId: json['contrato_id'] as int,
+      inquilinoNombre: json['inquilino_nombre'] ?? 'Sin inquilino',
       periodo: json['periodo'] ?? '',
       monto: double.tryParse(json['monto'].toString()) ?? 0,
       fechaLimite: json['fecha_limite'] ?? '',
@@ -94,11 +97,13 @@ class PagosService {
   static Future<List<PagoItem>> listar({
     String? estado,
     int? contratoId,
+    int? inquilinoId,
     int page = 1,
   }) async {
     final params = <String, String>{'page': page.toString()};
     if (estado != null) params['estado'] = estado;
     if (contratoId != null) params['contrato'] = contratoId.toString();
+    if (inquilinoId != null) params['contrato__arrendatario'] = inquilinoId.toString();
 
     final query = params.entries
         .map((e) => '${e.key}=${Uri.encodeComponent(e.value)}')

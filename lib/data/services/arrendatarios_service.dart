@@ -10,6 +10,7 @@ class ArrendatarioItem {
   final String email;
   final String telefono;
   final String estado;
+  final String propiedadActual;
 
   const ArrendatarioItem({
     required this.id,
@@ -18,6 +19,7 @@ class ArrendatarioItem {
     required this.email,
     required this.telefono,
     required this.estado,
+    required this.propiedadActual,
   });
 
   factory ArrendatarioItem.fromJson(Map<String, dynamic> json) {
@@ -28,6 +30,7 @@ class ArrendatarioItem {
       email:     json['email']     ?? '',
       telefono:  json['telefono']  ?? '',
       estado:    json['estado']    ?? 'activo',
+      propiedadActual: json['propiedad_actual'] ?? 'Sin propiedad',
     );
   }
 

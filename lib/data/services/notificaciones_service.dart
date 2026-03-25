@@ -9,6 +9,7 @@ class NotificacionItem {
   final String titulo;
   final String fechaProgramada;
   final String medio;
+  final bool leida;
 
   const NotificacionItem({
     required this.id,
@@ -17,6 +18,7 @@ class NotificacionItem {
     required this.titulo,
     required this.fechaProgramada,
     required this.medio,
+    this.leida = false,
   });
 
   factory NotificacionItem.fromJson(Map<String, dynamic> json) {
@@ -27,6 +29,7 @@ class NotificacionItem {
       titulo: json['titulo'] ?? '',
       fechaProgramada: json['fecha_programada'] ?? '',
       medio: json['medio'] ?? 'email',
+      leida: json['leida'] ?? false,
     );
   }
 }
@@ -98,5 +101,10 @@ class NotificacionesService {
   /// DELETE /notificaciones/{id}/
   static Future<void> eliminar(int id) async {
     await ApiClient.delete('/notificaciones/$id/');
+  }
+
+  /// POST /notificaciones/marcar_leidas/
+  static Future<void> marcarTodasComoLeidas() async {
+    await ApiClient.post('/notificaciones/marcar_leidas/', {});
   }
 }

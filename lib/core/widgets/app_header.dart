@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'user_profile_modal.dart';
+import '../../data/services/notificaciones_service.dart';
 
-class AppHeader extends StatelessWidget implements PreferredSizeWidget {
+class AppHeader extends StatefulWidget implements PreferredSizeWidget {
   final String title;
   final bool showBack;
   final String userInitials;
@@ -17,6 +18,29 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 
   @override
+  State<AppHeader> createState() => _AppHeaderState();
+}
+
+class _AppHeaderState extends State<AppHeader> {
+  bool _hasUnreadNotifications = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkUnreadNotifications();
+  }
+
+  Future<void> _checkUnreadNotifications() async {
+    try {
+      final notifications = await NotificacionesService.listar();
+      if (!mounted) return;
+      setState(() {
+        _hasUnreadNotifications = notifications.any((n) => !n.leida);
+      });
+    } catch (_) {}
+  }
+
+  @override
   Widget build(BuildContext context) {
     return AppBar(
       backgroundColor: const Color(0xFF225378),
@@ -24,7 +48,7 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
       automaticallyImplyLeading: false,
       title: Row(
         children: [
-          if (showBack)
+          if (widget.showBack)
             GestureDetector(
               onTap: () => Navigator.pop(context),
               child: Container(
@@ -39,7 +63,7 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
               ),
             ),
           Text(
-            title,
+            widget.title,
             style: const TextStyle(
               color: Colors.white,
               fontSize: 20,
@@ -50,32 +74,35 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
         ],
       ),
       actions: [
-        if (!showBack) ...[
+        if (!widget.showBack) ...[
 
           // Botón Notificaciones con punto naranja
           Stack(
             alignment: Alignment.center,
             children: [
               IconButton(
-                onPressed: () =>
-                    Navigator.pushNamed(context, '/notificaciones'),
+                  onPressed: () async {
+                    await Navigator.pushNamed(context, '/notificaciones');
+                    if (mounted) _checkUnreadNotifications();
+                  },
                 icon: const Icon(Icons.notifications_outlined,
                     color: Colors.white, size: 20),
               ),
-              Positioned(
-                top: 10,
-                right: 10,
-                child: Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEB7F00),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                        color: const Color(0xFF225378), width: 1.5),
+              if (_hasUnreadNotifications)
+                Positioned(
+                  top: 10,
+                  right: 10,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEB7F00),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                          color: const Color(0xFF225378), width: 1.5),
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
 
@@ -95,7 +122,7 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
                 ),
                 child: Center(
                   child: Text(
-                    userInitials,
+                    widget.userInitials,
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 11,

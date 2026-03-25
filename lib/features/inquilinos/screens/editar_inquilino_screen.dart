@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
@@ -50,6 +49,7 @@ class _EditarInquilinoScreenState extends State<EditarInquilinoScreen> {
   String _estado = 'activo';
 
   // ── Controladores — Modelo Contrato ───────────────────────────────────────
+  int?   _contratoId;          // ID del contrato activo (para PATCH vs POST)
   DateTime? _fechaInicio;
   DateTime? _fechaFin;
   late TextEditingController _rentaCtrl;
@@ -63,6 +63,7 @@ class _EditarInquilinoScreenState extends State<EditarInquilinoScreen> {
   int?   _propiedadId;
 
   // ── Controladores — DatosFiscales Arrendatario ────────────────────────────
+  int? _fiscalId;
   late TextEditingController _fiscalRazonSocialCtrl;
   late TextEditingController _fiscalRfcCtrl;
   late TextEditingController _fiscalCpCtrl;
@@ -125,6 +126,86 @@ class _EditarInquilinoScreenState extends State<EditarInquilinoScreen> {
         _estado     = d.estado;
         _cargando   = false;
       });
+
+      // Cargar contrato activo del inquilino para pre-poblar la sección Contrato
+      try {
+        final contratosData = await ApiClient.get(
+          '/contratos/?arrendatario=${widget.arrendatarioId}&estado=activo',
+        );
+        final lista = contratosData is List
+            ? contratosData
+            : (contratosData['results'] ?? []) as List;
+        if (lista.isNotEmpty) {
+          final c = lista.first as Map<String, dynamic>;
+          if (mounted) {
+            setState(() {
+              _contratoId    = c['id'] as int?;
+              _propiedadId   = c['propiedad'] as int?;
+              _estadoContrato = c['estado'] ?? 'activo';
+              _periodoPago   = c['periodo_pago'] ?? 'mensual';
+              _fechaInicio   = c['fecha_inicio'] != null
+                  ? DateTime.tryParse(c['fecha_inicio'])
+                  : null;
+              _fechaFin      = c['fecha_fin'] != null
+                  ? DateTime.tryParse(c['fecha_fin'])
+                  : null;
+              _rentaCtrl.text          = c['renta_acordada']?.toString() ?? '';
+              _depositoCtrl.text       = c['deposito']?.toString() ?? '';
+              _diaPagoCtrl.text        = c['dia_pago']?.toString() ?? '1';
+              _incrementoAnualCtrl.text = c['incremento_anual']?.toString() ?? '0.00';
+              _penalizacionCtrl.text   = c['penalizacion_anticipada']?.toString() ?? '';
+              _observacionesCtrl.text  = c['observaciones'] ?? '';
+            });
+          }
+        }
+      } catch (_) {
+        // No hay contrato activo — los campos quedan vacíos, el usuario puede crear uno nuevo
+      }
+
+      // Cargar datos fiscales
+      try {
+        final fRes = await ApiClient.get('/datos-fiscales/?tipo_entidad=arrendatario&entidad_id=${widget.arrendatarioId}');
+        if (fRes['results'] != null && fRes['results'].isNotEmpty) {
+          final f = fRes['results'][0];
+          if (mounted) {
+            setState(() {
+              _fiscalId = f['id'];
+              _fiscalRazonSocialCtrl.text = f['nombre_o_razon_social'] ?? '';
+              _fiscalRfcCtrl.text = f['rfc'] ?? '';
+              _fiscalCpCtrl.text = f['codigo_postal'] ?? '';
+              _fiscalCorreoCtrl.text = f['correo_facturacion'] ?? '';
+              if (f['regimen_fiscal'] != null && f['regimen_fiscal'].toString().isNotEmpty) {
+                // matching logic since backend might save full text
+                final rfStr = f['regimen_fiscal'].toString();
+                final regimenes = [
+                  '601 - General de Ley Personas Morales',
+                  '603 - Personas Morales con Fines No Lucrativos',
+                  '605 - Sueldos y Salarios',
+                  '606 - Arrendamiento',
+                  '607 - Enajenación o Adquisición de Bienes',
+                  '608 - Demás ingresos',
+                  '612 - Personas Físicas con Actividades Empresariales',
+                  '616 - Sin obligaciones fiscales',
+                  '621 - Incorporación Fiscal',
+                  '626 - Régimen Simplificado de Confianza',
+                ];
+                if (regimenes.contains(rfStr)) {
+                  _fiscalRegimen = rfStr;
+                } else {
+                  final match = regimenes.where((r) => r.startsWith(rfStr)).firstOrNull;
+                  if (match != null) _fiscalRegimen = match;
+                }
+              }
+              if (f['uso_cfdi'] != null && f['uso_cfdi'].toString().isNotEmpty) {
+                final ucStr = f['uso_cfdi'].toString();
+                final usos = ['G01','G02','G03','I01','I03','D01','D10','P01','S01'];
+                if (usos.contains(ucStr)) _fiscalUsoCfdi = ucStr;
+              }
+            });
+          }
+        }
+      } catch (_) {}
+
     } on ApiException catch (e) {
       if (mounted) setState(() { _cargando = false; _errorCarga = e.message; });
     } catch (_) {
@@ -134,6 +215,7 @@ class _EditarInquilinoScreenState extends State<EditarInquilinoScreen> {
 
   Future<void> _cargarPropiedades() async {
     try {
+      // Trae disponibles + la que ya tiene este inquilino (si aplica)
       final lista = await PropiedadesService.listar();
       if (mounted) {
         setState(() {
@@ -177,13 +259,19 @@ class _EditarInquilinoScreenState extends State<EditarInquilinoScreen> {
 
   Future<void> _pickFechaContrato(bool isInicio) async {
     final now = DateTime.now();
+    // La fecha de fin no puede ser anterior ni igual a la de inicio
+    final firstDate = isInicio
+        ? DateTime(2020)
+        : (_fechaInicio != null
+            ? _fechaInicio!.add(const Duration(days: 1))
+            : DateTime(2020));
     final initial = isInicio
         ? (_fechaInicio ?? now)
-        : (_fechaFin ?? now.add(const Duration(days: 365)));
+        : (_fechaFin ?? (firstDate.isAfter(now) ? firstDate : now.add(const Duration(days: 365))));
     final picked = await showDatePicker(
       context: context,
-      initialDate: initial,
-      firstDate: DateTime(2020),
+      initialDate: initial.isBefore(firstDate) ? firstDate : initial,
+      firstDate: firstDate,
       lastDate: DateTime(2035),
       builder: (context, child) => Theme(
         data: Theme.of(context).copyWith(
@@ -201,9 +289,9 @@ class _EditarInquilinoScreenState extends State<EditarInquilinoScreen> {
       setState(() {
         if (isInicio) {
           _fechaInicio = picked;
-          // auto-ajusta fin si es anterior al inicio
-          if (_fechaFin != null && _fechaFin!.isBefore(picked)) {
-            _fechaFin = picked.add(const Duration(days: 365));
+          // Si el fin ya estaba puesto y ahora es igual o anterior al nuevo inicio, se limpia
+          if (_fechaFin != null && !_fechaFin!.isAfter(picked)) {
+            _fechaFin = null;
           }
         } else {
           _fechaFin = picked;
@@ -240,6 +328,7 @@ class _EditarInquilinoScreenState extends State<EditarInquilinoScreen> {
 
     setState(() => _isLoading = true);
     try {
+      // 1. Actualizar datos del arrendatario
       await ArrendatariosService.actualizar(widget.arrendatarioId!, {
         'nombre':           _nombreCtrl.text.trim(),
         'apellidos':        _apellidosCtrl.text.trim(),
@@ -251,6 +340,51 @@ class _EditarInquilinoScreenState extends State<EditarInquilinoScreen> {
         'hijos':            _hijos,
         'estado':           _estado,
       });
+
+      // 1.5. Guardar datos fiscales
+      final fiscalBody = {
+        'tipo_entidad': 'arrendatario',
+        'entidad_id': widget.arrendatarioId,
+        'rfc': _fiscalRfcCtrl.text.toUpperCase(),
+        'nombre_o_razon_social': _fiscalRazonSocialCtrl.text,
+        'regimen_fiscal': _fiscalRegimen,
+        'codigo_postal': _fiscalCpCtrl.text,
+        'uso_cfdi': _fiscalUsoCfdi,
+        'correo_facturacion': _fiscalCorreoCtrl.text.trim(),
+      };
+
+      if (_fiscalId != null) {
+        await ApiClient.patch('/datos-fiscales/$_fiscalId/', fiscalBody);
+      } else {
+        await ApiClient.post('/datos-fiscales/', fiscalBody);
+      }
+
+      // 2. Guardar contrato si se llenaron los campos mínimos
+      if (_propiedadId != null && _fechaInicio != null && _fechaFin != null && _rentaCtrl.text.isNotEmpty) {
+        final contratoBody = {
+          'arrendatario':            widget.arrendatarioId,
+          'propiedad':               _propiedadId,
+          'fecha_inicio':            _fechaInicio!.toIso8601String().split('T')[0],
+          'fecha_fin':               _fechaFin!.toIso8601String().split('T')[0],
+          'renta_acordada':          _rentaCtrl.text,
+          'deposito':                _depositoCtrl.text.isNotEmpty ? _depositoCtrl.text : '0',
+          'dia_pago':                int.tryParse(_diaPagoCtrl.text) ?? 1,
+          'periodo_pago':            _periodoPago,
+          'incremento_anual':        _incrementoAnualCtrl.text.isNotEmpty ? _incrementoAnualCtrl.text : '0.00',
+          'penalizacion_anticipada': _penalizacionCtrl.text.isNotEmpty ? _penalizacionCtrl.text : '0.00',
+          'observaciones':           _observacionesCtrl.text,
+          'estado':                  _estadoContrato,
+        };
+
+        if (_contratoId != null) {
+          // Ya existe contrato activo → actualizar
+          await ApiClient.patch('/contratos/$_contratoId/', contratoBody);
+        } else {
+          // No hay contrato → crear uno nuevo
+          await ApiClient.post('/contratos/', contratoBody);
+        }
+      }
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -435,14 +569,13 @@ class _EditarInquilinoScreenState extends State<EditarInquilinoScreen> {
               const SizedBox(height: 12),
 
               _buildField(
-                label: 'Correo Electrónico',
+                label: 'Correo Electrónico (opcional)',
                 controller: _emailCtrl,
                 hint: 'juan@email.com',
                 icon: Icons.mail_outline,
                 keyboardType: TextInputType.emailAddress,
                 validator: (v) {
-                  if (v == null || v.isEmpty) return 'Requerido';
-                  if (!v.contains('@')) return 'Email inválido';
+                  if (v != null && v.isNotEmpty && !v.contains('@')) return 'Email inválido';
                   return null;
                 },
               ),
@@ -452,9 +585,9 @@ class _EditarInquilinoScreenState extends State<EditarInquilinoScreen> {
               _buildDateField(),
               const SizedBox(height: 12),
 
-              // Folio INE
+              // Folio INE (opcional)
               _buildField(
-                label: 'Folio INE / Clave Electoral',
+                label: 'Folio INE / Clave Electoral (opcional)',
                 controller: _folioIneCtrl,
                 hint: 'PELJ901012HDFRZN01',
                 icon: Icons.credit_card_outlined,
@@ -465,8 +598,7 @@ class _EditarInquilinoScreenState extends State<EditarInquilinoScreen> {
                   LengthLimitingTextInputFormatter(20),
                 ],
                 validator: (v) {
-                  if (v == null || v.isEmpty) return 'Requerido';
-                  if (v.length < 18) return 'Mínimo 18 caracteres';
+                  if (v != null && v.isNotEmpty && v.length < 18) return 'Mínimo 18 caracteres';
                   return null;
                 },
               ),
@@ -579,7 +711,6 @@ class _EditarInquilinoScreenState extends State<EditarInquilinoScreen> {
                       icon: Icons.attach_money,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'\d+\.?\d{0,2}'))],
-                      validator: (v) => v!.isEmpty ? 'Requerido' : null,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -595,7 +726,8 @@ class _EditarInquilinoScreenState extends State<EditarInquilinoScreen> {
                         LengthLimitingTextInputFormatter(2),
                       ],
                       validator: (v) {
-                        final n = int.tryParse(v ?? '');
+                        if (v == null || v.isEmpty) return null;
+                        final n = int.tryParse(v);
                         if (n == null || n < 1 || n > 31) return 'Entre 1 y 31';
                         return null;
                       },
@@ -616,7 +748,6 @@ class _EditarInquilinoScreenState extends State<EditarInquilinoScreen> {
                       icon: Icons.credit_card_outlined,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'\d+\.?\d{0,2}'))],
-                      validator: (v) => v!.isEmpty ? 'Requerido' : null,
                     ),
                   ),
                   const SizedBox(width: 12),

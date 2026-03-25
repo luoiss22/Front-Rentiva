@@ -27,6 +27,8 @@ class ApiClient {
     final h = <String, String>{'Content-Type': 'application/json'};
     if (auth) {
       final token = await StorageService.getAccessToken();
+      // ignore: avoid_print
+      print('[ApiClient] token: ${token == null ? "NULL" : token.substring(0, 20) + "..."}');
       if (token != null) h['Authorization'] = 'Bearer $token';
     }
     return h;
@@ -34,6 +36,10 @@ class ApiClient {
 
   // ── Parsear respuesta ────────────────────────────────────────
   static dynamic _parse(http.Response response) {
+    // ignore: avoid_print
+    print('[ApiClient] ${response.request?.method} ${response.request?.url} → ${response.statusCode}');
+    // ignore: avoid_print
+    print('[ApiClient] body: ${response.body.substring(0, response.body.length.clamp(0, 300))}');
     final body = utf8.decode(response.bodyBytes);
     final data = jsonDecode(body);
     if (response.statusCode >= 200 && response.statusCode < 300) return data;

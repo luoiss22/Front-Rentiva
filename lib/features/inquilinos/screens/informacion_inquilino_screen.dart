@@ -5,6 +5,9 @@ import '../../../core/widgets/app_header.dart';
 import '../../../core/services/api_client.dart';
 import '../../../data/services/arrendatarios_service.dart';
 import '../../propiedades/widgets/contrato_pdf.dart';
+import '../../pagos/widgets/pago_models.dart';
+import '../../pagos/widgets/pago_tile.dart';
+import '../../pagos/widgets/detalle_pago_sheet.dart';
 
 // ─── PANTALLA ─────────────────────────────────────────────────────────────────
 class InformacionInquilinoScreen extends StatefulWidget {
@@ -165,7 +168,7 @@ class _InformacionInquilinoScreenState
           controller: _tabController,
           children: [
             _TabGeneral(inquilino: inq, onLlamar: _llamar, onWhatsApp: _abrirWhatsApp),
-            const _TabPagos(),
+            _TabPagos(inquilinoId: inq.id),
             _TabDocumentos(inquilino: inq),
           ],
         ),
@@ -298,10 +301,10 @@ class _TabGeneral extends StatelessWidget {
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      if (inq.mascotas) _badge('🐾 Mascotas',
+                      if (inq.mascotas) _badge('Mascotas',
                           const Color(0xFFF3FFE2), Colors.green.shade700),
                       if (inq.mascotas && inq.hijos) const SizedBox(width: 8),
-                      if (inq.hijos) _badge('👶 Hijos',
+                      if (inq.hijos) _badge('Hijos',
                           const Color(0xFFEFF6FF), Colors.blue.shade700),
                     ],
                   ),
@@ -447,24 +450,68 @@ class _TabGeneral extends StatelessWidget {
 }
 
 
-// ─── TAB: PAGOS ───────────────────────────────────────────────────────────────
-class _TabPagos extends StatelessWidget {
-  const _TabPagos();
+class _TabPagos extends StatefulWidget {
+  final int inquilinoId;
+  const _TabPagos({required this.inquilinoId});
+
+  @override
+  State<_TabPagos> createState() => _TabPagosState();
+}
+
+class _TabPagosState extends State<_TabPagos> {
+  List<Pago> _pagos = [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarPagos();
+  }
+
+  Future<void> _cargarPagos() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final res = await ApiClient.get('/pagos/?contrato__arrendatario=${widget.inquilinoId}');
+      final results = res['results'] as List;
+      setState(() {
+        _pagos = results.map((e) => Pago.fromJson(e)).toList();
+        _loading = false;
+      });
+    } on ApiException catch (e) {
+      setState(() { _error = e.message; _loading = false; });
+    } catch (e) {
+      setState(() { _error = 'Error: $e'; _loading = false; });
+    }
+  }
+
+  void _mostrarDetallePago(BuildContext context, Pago pago) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => DetallePagoSheet(pago: pago),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.receipt_long_outlined, size: 48, color: Colors.grey),
-          SizedBox(height: 12),
-          Text('Historial de pagos próximamente',
-              style: TextStyle(color: Colors.grey, fontSize: 14)),
-          SizedBox(height: 6),
-          Text('Se conectará al módulo de pagos',
-              style: TextStyle(color: Colors.grey, fontSize: 12)),
-        ],
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_error != null) return Center(child: Text(_error!));
+    if (_pagos.isEmpty) return const Center(child: Text('No hay pagos registrados', style: TextStyle(color: Colors.grey)));
+    return RefreshIndicator(
+      onRefresh: _cargarPagos,
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemCount: _pagos.length,
+        itemBuilder: (context, i) => PagoTile(
+          pago: _pagos[i],
+          isLast: i == _pagos.length - 1,
+          onTap: () => _mostrarDetallePago(context, _pagos[i]),
+        ),
       ),
     );
   }
@@ -475,13 +522,63 @@ class _TabDocumentos extends StatelessWidget {
   final ArrendatarioDetalle inquilino;
   const _TabDocumentos({required this.inquilino});
 
-  void _generarContratoPdf() {
-    ContratoPdf.generarConDatos(
-      arrendatario: inquilino.nombreCompleto,
-      inmuebleDireccion: 'Dirección registrada en contrato',
-      renta: '\$0',
-      ciudad: 'México',
-    );
+  Future<void> _generarContratoPdf(BuildContext context) async {
+    try {
+      // Cargar contrato activo del arrendatario
+      final data = await ApiClient.get('/contratos/?arrendatario=${inquilino.id}&estado=activo');
+      final lista = data is List ? data : (data['results'] ?? []);
+
+      String direccion = 'Ver contrato para dirección';
+      String renta = 'Ver contrato para monto';
+      String ciudad = 'México';
+      String? fechaInicio;
+      String? fechaFin;
+      String? deposito;
+
+      if ((lista as List).isNotEmpty) {
+        final contrato = lista.first;
+        fechaInicio = contrato['fecha_inicio'];
+        fechaFin    = contrato['fecha_fin'];
+        renta       = '\$${contrato['renta_acordada'] ?? 0}';
+        deposito    = contrato['deposito']?.toString();
+
+        // Cargar datos de la propiedad
+        final propiedadId = contrato['propiedad'];
+        if (propiedadId != null) {
+          try {
+            final prop = await ApiClient.get('/propiedades/$propiedadId/');
+            direccion = '${prop['direccion'] ?? ''}, ${prop['ciudad'] ?? ''}, ${prop['estado_geografico'] ?? ''}';
+            ciudad    = prop['ciudad'] ?? 'México';
+          } catch (_) {}
+        }
+      }
+
+      // Cargar nombre del propietario autenticado
+      String arrendador = 'El Propietario';
+      try {
+        final me = await ApiClient.get('/auth/me/');
+        arrendador = '${me['nombre'] ?? ''} ${me['apellidos'] ?? ''}'.trim();
+      } catch (_) {}
+
+      ContratoPdf.generarConDatos(
+        arrendatario:       inquilino.nombreCompleto,
+        inmuebleDireccion:  direccion,
+        renta:              renta,
+        ciudad:             ciudad,
+        arrendador:         arrendador,
+        fechaInicio:        fechaInicio,
+        fechaFin:           fechaFin,
+        deposito:           deposito,
+      );
+    } catch (_) {
+      // Si falla la carga, genera con lo que se tiene
+      ContratoPdf.generarConDatos(
+        arrendatario:      inquilino.nombreCompleto,
+        inmuebleDireccion: 'Ver contrato para dirección',
+        renta:             'Ver contrato para monto',
+        ciudad:            'México',
+      );
+    }
   }
 
   @override
@@ -496,7 +593,7 @@ class _TabDocumentos extends StatelessWidget {
                   color: Color(0xFF225378), fontWeight: FontWeight.bold, fontSize: 15)),
           const SizedBox(height: 12),
           GestureDetector(
-            onTap: _generarContratoPdf,
+            onTap: () => _generarContratoPdf(context),
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(

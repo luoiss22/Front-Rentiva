@@ -126,6 +126,7 @@ class Pago {
   final String inquilinoNombre;
   final FichaPago? ficha;
   final Factura? factura;
+  final List<String> datosFiscalesFaltantes;
 
   const Pago({
     required this.id,
@@ -142,6 +143,7 @@ class Pago {
     required this.inquilinoNombre,
     this.ficha,
     this.factura,
+    this.datosFiscalesFaltantes = const [],
   });
 
   factory Pago.fromJson(Map<String, dynamic> json) {
@@ -160,6 +162,7 @@ class Pago {
       inquilinoNombre: json['contrato']?['arrendatario_nombre'] ?? json['inquilino_nombre'] ?? 'Sin nombre',
       ficha: json['ficha'] != null ? FichaPago.fromJson(json['ficha']) : null,
       factura: json['factura'] != null ? Factura.fromJson(json['factura']) : null,
+      datosFiscalesFaltantes: List<String>.from(json['datos_fiscales_faltantes'] ?? []),
     );
   }
 
@@ -192,6 +195,7 @@ class Pago {
     String? referencia,
     String? comprobanteUrl,
     double? recargaMora,
+    List<String>? datosFiscalesFaltantes,
   }) {
     return Pago(
       id: id,
@@ -208,6 +212,7 @@ class Pago {
       inquilinoNombre: inquilinoNombre,
       ficha: ficha,
       factura: factura,
+      datosFiscalesFaltantes: datosFiscalesFaltantes ?? this.datosFiscalesFaltantes,
     );
   }
 

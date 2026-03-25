@@ -337,8 +337,10 @@ class _MantenimientoScreenState extends State<MantenimientoScreen> {
       bottomNavigationBar:
           BottomNavBar(currentIndex: _navIndex, onTap: _onNavTap),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () =>
-            Navigator.pushNamed(context, '/mantenimiento/nuevo'),
+        onPressed: () {
+          Navigator.pushNamed(context, '/mantenimiento/nuevo')
+              .then((_) => _cargarReportes());
+        },
         backgroundColor: const Color(0xFFEB7F00),
         icon: const Icon(Icons.add, color: Colors.white),
         label: const Text('Nuevo Reporte',
@@ -470,16 +472,14 @@ class _MantenimientoScreenState extends State<MantenimientoScreen> {
     );
   }
 
-  void _mostrarDetalle(
-      BuildContext context, ReporteMantenimiento reporte) {
+  void _mostrarDetalle(BuildContext context, ReporteMantenimiento reporte) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
           borderRadius:
-              BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => _DetalleReporteSheet(reporte: reporte),
-    );
+              BorderRadius.vertical(top: Radius.circular(24))),builder: (_) => _DetalleReporteSheet(reporte: reporte),
+    ).then((_) => _cargarReportes());
   }
 }
 
@@ -952,9 +952,10 @@ class _DetalleReporteSheetState extends State<_DetalleReporteSheet> {
                 width: double.infinity,
                 child: OutlinedButton.icon(
                   onPressed: () {
-                    Navigator.pop(context);
                     Navigator.pushNamed(context, '/mantenimiento/editar',
-                        arguments: r.id);
+                        arguments: r.id).then((_) {
+                      Navigator.pop(context, true);
+                    });
                   },
                   icon: const Icon(Icons.edit_outlined,
                       color: Color(0xFF225378), size: 18),
