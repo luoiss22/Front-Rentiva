@@ -76,16 +76,26 @@ class ReporteItem {
   final int id;
   final int? propiedadId;
   final int? especialistaId;
+  final String? especialistaNombre;
+  final String descripcion;
+  final String tipoEspecialista;
   final String prioridad;
   final String estado;
+  final double? costoEstimado;
+  final double? costoFinal;
   final String createdAt;
 
   const ReporteItem({
     required this.id,
     this.propiedadId,
     this.especialistaId,
+    this.especialistaNombre,
+    required this.descripcion,
+    required this.tipoEspecialista,
     required this.prioridad,
     required this.estado,
+    this.costoEstimado,
+    this.costoFinal,
     required this.createdAt,
   });
 
@@ -94,8 +104,17 @@ class ReporteItem {
       id: json['id'] as int,
       propiedadId: json['propiedad'] as int?,
       especialistaId: json['especialista'] as int?,
+      especialistaNombre: json['especialista_nombre'] as String?,
+      descripcion: json['descripcion'] ?? '',
+      tipoEspecialista: json['tipo_especialista'] ?? '',
       prioridad: json['prioridad'] ?? 'media',
       estado: json['estado'] ?? 'abierto',
+      costoEstimado: json['costo_estimado'] != null
+          ? double.tryParse(json['costo_estimado'].toString())
+          : null,
+      costoFinal: json['costo_final'] != null
+          ? double.tryParse(json['costo_final'].toString())
+          : null,
       createdAt: json['created_at'] ?? '',
     );
   }
@@ -169,7 +188,8 @@ class EspecialistasService {
     int page = 1,
   }) async {
     final params = <String, String>{'page': page.toString()};
-    if (especialidad != null) params['especialidad'] = especialidad;
+    // Usamos search en lugar de especialidad para que sea búsqueda parcial (icontains)
+    if (especialidad != null) params['search'] = especialidad;
     if (disponible != null) params['disponible'] = disponible.toString();
     if (busqueda != null && busqueda.isNotEmpty) params['search'] = busqueda;
 
@@ -206,9 +226,17 @@ class EspecialistasService {
   }
 }
 
+class PaginatedReportes {
+  final List<ReporteItem> items;
+  final bool hayMas;
+
+  const PaginatedReportes({required this.items, required this.hayMas});
+}
+
 class ReportesMantenimientoService {
   /// GET /reportes-mantenimiento/?estado=...&prioridad=...&page=N
-  static Future<List<ReporteItem>> listar({
+  /// Devuelve los items de la página y si hay más páginas.
+  static Future<PaginatedReportes> listar({
     String? estado,
     String? prioridad,
     int page = 1,
@@ -223,7 +251,11 @@ class ReportesMantenimientoService {
 
     final data = await ApiClient.get('/reportes-mantenimiento/?$query');
     final results = data['results'] as List;
-    return results.map((e) => ReporteItem.fromJson(e)).toList();
+    final hayMas = data['next'] != null;
+    return PaginatedReportes(
+      items: results.map((e) => ReporteItem.fromJson(e)).toList(),
+      hayMas: hayMas,
+    );
   }
 
   /// GET /reportes-mantenimiento/{id}/

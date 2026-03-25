@@ -105,63 +105,10 @@ extension ReporteEstadoExt on ReporteEstado {
   }
 }
 
-// ─── MODELOS según Django ─────────────────────────────────────────────────────
-class Especialista {
-  final int id;
-  final String nombre;
-  final String especialidad;
-  final String telefono;
-  final String email;
-  final String ciudad;
-  final String estadoGeografico;
-  final double calificacion;
-  final int aniosExperiencia;
-  final bool disponible;
+// ─── MODELOS ──────────────────────────────────────────────────────────────────
 
-  const Especialista({
-    required this.id,
-    required this.nombre,
-    required this.especialidad,
-    required this.telefono,
-    required this.email,
-    required this.ciudad,
-    required this.estadoGeografico,
-    required this.calificacion,
-    required this.aniosExperiencia,
-    required this.disponible,
-  });
-
-  factory Especialista.fromJson(Map<String, dynamic> json) {
-    return Especialista(
-      id: json['id'] as int,
-      nombre: json['nombre'] ?? '',
-      especialidad: json['especialidad'] ?? '',
-      telefono: json['telefono'] ?? '',
-      email: json['email'] ?? '',
-      ciudad: json['ciudad'] ?? '',
-      estadoGeografico: json['estado_geografico'] ?? '',
-      calificacion: double.tryParse(json['calificacion'].toString()) ?? 0,
-      aniosExperiencia: json['anios_experiencia'] ?? 0,
-      disponible: json['disponible'] ?? true,
-    );
-  }
-}
-
-class ResenaEspecialista {
-  final int id;
-  final int calificacion; // 1-5
-  final String comentario;
-  final DateTime createdAt;
-
-  const ResenaEspecialista({
-    required this.id,
-    required this.calificacion,
-    required this.comentario,
-    required this.createdAt,
-  });
-}
-
-class ReporteMantenimiento {
+// Modelo liviano para la lista — se construye desde ReporteItem sin requests extra
+class ReporteResumen {
   final int id;
   final String descripcion;
   final String tipoEspecialista;
@@ -169,15 +116,12 @@ class ReporteMantenimiento {
   final ReporteEstado estado;
   final double? costoEstimado;
   final double? costoFinal;
-  final DateTime? fechaResolucion;
   final DateTime createdAt;
-  final DateTime updatedAt;
-  // FK
   final String propiedadNombre;
-  final Especialista? especialista;
-  final List<ResenaEspecialista> resenas;
+  final int? especialistaId;
+  final String? especialistaNombre;
 
-  const ReporteMantenimiento({
+  const ReporteResumen({
     required this.id,
     required this.descripcion,
     required this.tipoEspecialista,
@@ -185,12 +129,10 @@ class ReporteMantenimiento {
     required this.estado,
     this.costoEstimado,
     this.costoFinal,
-    this.fechaResolucion,
     required this.createdAt,
-    required this.updatedAt,
     required this.propiedadNombre,
-    this.especialista,
-    this.resenas = const [],
+    this.especialistaId,
+    this.especialistaNombre,
   });
 
   String get fechaRelativa {
@@ -204,7 +146,58 @@ class ReporteMantenimiento {
   }
 }
 
-// (datos mock eliminados — ahora se cargan desde el API)
+// Modelo completo para el detalle — se carga solo al abrir el bottom sheet
+class EspecialistaCompleto {
+  final int id;
+  final String nombre;
+  final String especialidad;
+  final String telefono;
+  final String email;
+  final String ciudad;
+  final double calificacion;
+  final int aniosExperiencia;
+  final bool disponible;
+
+  const EspecialistaCompleto({
+    required this.id,
+    required this.nombre,
+    required this.especialidad,
+    required this.telefono,
+    required this.email,
+    required this.ciudad,
+    required this.calificacion,
+    required this.aniosExperiencia,
+    required this.disponible,
+  });
+
+  factory EspecialistaCompleto.fromDetalle(EspecialistaDetalle d) {
+    return EspecialistaCompleto(
+      id: d.id,
+      nombre: d.nombre,
+      especialidad: d.especialidad,
+      telefono: d.telefono,
+      email: d.email,
+      ciudad: d.ciudad,
+      calificacion: d.calificacion,
+      aniosExperiencia: d.aniosExperiencia,
+      disponible: d.disponible,
+    );
+  }
+}
+
+class ResenaResumen {
+  final int id;
+  final int calificacion;
+  final String comentario;
+  final DateTime createdAt;
+
+  const ResenaResumen({
+    required this.id,
+    required this.calificacion,
+    required this.comentario,
+    required this.createdAt,
+  });
+}
 
 // ─── PANTALLA ─────────────────────────────────────────────────────────────────
 class MantenimientoScreen extends StatefulWidget {
@@ -218,92 +211,105 @@ class _MantenimientoScreenState extends State<MantenimientoScreen> {
   final int _navIndex = 4;
   String _filtro = 'todos';
 
-  List<ReporteMantenimiento> _reportes = [];
+  List<ReporteResumen> _reportes = [];
   bool _loading = true;
+  bool _cargandoMas = false;
+  bool _hayMas = false;
+  int _paginaActual = 1;
   String? _error;
+  Map<int, String> _propMap = {};
+
+  final ScrollController _scrollCtrl = ScrollController();
 
   @override
   void initState() {
     super.initState();
+    _scrollCtrl.addListener(_onScroll);
     _cargarReportes();
   }
 
+  @override
+  void dispose() {
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    // Cuando queden 200px para el final, carga la siguiente página
+    if (_scrollCtrl.position.pixels >= _scrollCtrl.position.maxScrollExtent - 200 &&
+        !_cargandoMas && _hayMas) {
+      _cargarMas();
+    }
+  }
+
+  List<ReporteResumen> _itemsDesdeApi(List<ReporteItem> items) {
+    return items.map((item) => ReporteResumen(
+      id: item.id,
+      descripcion: item.descripcion,
+      tipoEspecialista: item.tipoEspecialista,
+      prioridad: ReportePrioridad.values.firstWhere(
+        (p) => p.name == item.prioridad,
+        orElse: () => ReportePrioridad.media,
+      ),
+      estado: ReporteEstado.values.firstWhere(
+        (e) => e.name == item.estado,
+        orElse: () => ReporteEstado.abierto,
+      ),
+      costoEstimado: item.costoEstimado,
+      costoFinal: item.costoFinal,
+      createdAt: DateTime.tryParse(item.createdAt) ?? DateTime.now(),
+      propiedadNombre: _propMap[item.propiedadId] ?? 'Propiedad #${item.propiedadId}',
+      especialistaId: item.especialistaId,
+      especialistaNombre: item.especialistaNombre,
+    )).toList();
+  }
+
+  // Carga inicial — limpia la lista y carga desde página 1
   Future<void> _cargarReportes() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() { _loading = true; _error = null; _paginaActual = 1; });
     try {
-      // Cargar propiedades para mapear id → nombre
-      Map<int, String> propMap = {};
-      try {
-        final propData = await ApiClient.get('/propiedades/');
-        final propResults = propData['results'] as List;
-        for (final p in propResults) {
-          propMap[p['id'] as int] = p['nombre'] ?? 'Propiedad #${p['id']}';
-        }
-      } catch (_) {}
+      final futures = await Future.wait([
+        ApiClient.get('/propiedades/'),
+        ReportesMantenimientoService.listar(page: 1),
+      ]);
 
-      final items = await ReportesMantenimientoService.listar();
-      final List<ReporteMantenimiento> lista = [];
-      for (final item in items) {
-        try {
-          final det = await ReportesMantenimientoService.detalle(item.id);
-          Especialista? esp;
-          if (det.especialistaId != null) {
-            try {
-              final espDet = await EspecialistasService.detalle(det.especialistaId!);
-              esp = Especialista(
-                id: espDet.id,
-                nombre: espDet.nombre,
-                especialidad: espDet.especialidad,
-                telefono: espDet.telefono,
-                email: espDet.email,
-                ciudad: espDet.ciudad,
-                estadoGeografico: espDet.estadoGeografico,
-                calificacion: espDet.calificacion,
-                aniosExperiencia: espDet.aniosExperiencia,
-                disponible: espDet.disponible,
-              );
-            } catch (_) {}
-          }
+      final propData = futures[0] as Map<String, dynamic>;
+      final paginado = futures[1] as PaginatedReportes;
 
-          final resenas = (det.resenas).map<ResenaEspecialista>((r) {
-            return ResenaEspecialista(
-              id: r['id'] ?? 0,
-              calificacion: r['calificacion'] ?? 0,
-              comentario: r['comentario'] ?? '',
-              createdAt: DateTime.tryParse(r['created_at'] ?? '') ?? DateTime.now(),
-            );
-          }).toList();
-
-          lista.add(ReporteMantenimiento(
-            id: det.id,
-            descripcion: det.descripcion,
-            tipoEspecialista: det.tipoEspecialista,
-            prioridad: ReportePrioridad.values.firstWhere(
-              (p) => p.name == det.prioridad,
-              orElse: () => ReportePrioridad.media,
-            ),
-            estado: ReporteEstado.values.firstWhere(
-              (e) => e.name == det.estado,
-              orElse: () => ReporteEstado.abierto,
-            ),
-            costoEstimado: det.costoEstimado,
-            costoFinal: det.costoFinal,
-            fechaResolucion: det.fechaResolucion != null
-                ? DateTime.tryParse(det.fechaResolucion!)
-                : null,
-            createdAt: DateTime.tryParse(det.createdAt) ?? DateTime.now(),
-            updatedAt: DateTime.tryParse(det.updatedAt) ?? DateTime.now(),
-            propiedadNombre: propMap[det.propiedadId] ?? 'Propiedad #${det.propiedadId}',
-            especialista: esp,
-            resenas: resenas,
-          ));
-        } catch (_) {}
+      final propResults = propData['results'] as List;
+      final propMap = <int, String>{};
+      for (final p in propResults) {
+        propMap[p['id'] as int] = p['nombre'] ?? 'Propiedad #${p['id']}';
       }
-      setState(() { _reportes = lista; _loading = false; });
+
+      setState(() {
+        _propMap = propMap;
+        _reportes = _itemsDesdeApi(paginado.items);
+        _hayMas = paginado.hayMas;
+        _loading = false;
+      });
     } on ApiException catch (e) {
       setState(() { _error = e.message; _loading = false; });
-    } catch (e) {
+    } catch (_) {
       setState(() { _error = 'Error de conexión'; _loading = false; });
+    }
+  }
+
+  // Carga página siguiente y agrega al final de la lista
+  Future<void> _cargarMas() async {
+    if (_cargandoMas) return;
+    setState(() => _cargandoMas = true);
+    try {
+      final siguientePagina = _paginaActual + 1;
+      final paginado = await ReportesMantenimientoService.listar(page: siguientePagina);
+      setState(() {
+        _reportes.addAll(_itemsDesdeApi(paginado.items));
+        _hayMas = paginado.hayMas;
+        _paginaActual = siguientePagina;
+        _cargandoMas = false;
+      });
+    } catch (_) {
+      setState(() => _cargandoMas = false);
     }
   }
 
@@ -321,7 +327,7 @@ class _MantenimientoScreenState extends State<MantenimientoScreen> {
     if (index != _navIndex) Navigator.pushNamed(context, routes[index]);
   }
 
-  List<ReporteMantenimiento> get _filtrados {
+  List<ReporteResumen> get _filtrados {
     if (_filtro == 'todos') return _reportes;
     return _reportes.where((r) => r.estado.name == _filtro).toList();
   }
@@ -344,8 +350,7 @@ class _MantenimientoScreenState extends State<MantenimientoScreen> {
         backgroundColor: const Color(0xFFEB7F00),
         icon: const Icon(Icons.add, color: Colors.white),
         label: const Text('Nuevo Reporte',
-            style: TextStyle(
-                color: Colors.white, fontWeight: FontWeight.bold)),
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         elevation: 4,
       ),
       body: _loading
@@ -361,40 +366,21 @@ class _MantenimientoScreenState extends State<MantenimientoScreen> {
                 ))
               : Column(
         children: [
-          // ── Stats ─────────────────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
             child: Row(
               children: [
-                _StatCard(
-                  count: _count(ReporteEstado.abierto),
-                  label: 'Pendientes',
-                  color: const Color(0xFFEB7F00),
-                ),
+                _StatCard(count: _count(ReporteEstado.abierto),    label: 'Pendientes', color: const Color(0xFFEB7F00)),
                 const SizedBox(width: 10),
-                _StatCard(
-                  count: _count(ReporteEstado.en_proceso),
-                  label: 'En Proceso',
-                  color: const Color(0xFF1695A3),
-                ),
+                _StatCard(count: _count(ReporteEstado.en_proceso), label: 'En Proceso',  color: const Color(0xFF1695A3)),
                 const SizedBox(width: 10),
-                _StatCard(
-                  count: _count(ReporteEstado.resuelto),
-                  label: 'Resueltos',
-                  color: Colors.green,
-                ),
+                _StatCard(count: _count(ReporteEstado.resuelto),   label: 'Resueltos',   color: Colors.green),
                 const SizedBox(width: 10),
-                _StatCard(
-                  count: _count(ReporteEstado.cancelado),
-                  label: 'Cancelados',
-                  color: Colors.grey,
-                ),
+                _StatCard(count: _count(ReporteEstado.cancelado),  label: 'Cancelados',  color: Colors.grey),
               ],
             ),
           ),
           const SizedBox(height: 14),
-
-          // ── Filtros ───────────────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Container(
@@ -402,10 +388,7 @@ class _MantenimientoScreenState extends State<MantenimientoScreen> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                      color: Colors.black.withOpacity(0.04), blurRadius: 6),
-                ],
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6)],
               ),
               child: Row(
                 children: _filtros.map((f) {
@@ -417,9 +400,7 @@ class _MantenimientoScreenState extends State<MantenimientoScreen> {
                         duration: const Duration(milliseconds: 150),
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         decoration: BoxDecoration(
-                          color: isActive
-                              ? const Color(0xFF225378)
-                              : Colors.transparent,
+                          color: isActive ? const Color(0xFF225378) : Colors.transparent,
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
@@ -428,8 +409,7 @@ class _MantenimientoScreenState extends State<MantenimientoScreen> {
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
-                            color:
-                                isActive ? Colors.white : Colors.grey,
+                            color: isActive ? Colors.white : Colors.grey,
                           ),
                         ),
                       ),
@@ -440,58 +420,69 @@ class _MantenimientoScreenState extends State<MantenimientoScreen> {
             ),
           ),
           const SizedBox(height: 12),
-
-          // ── Lista ─────────────────────────────────────────────────────────
           Expanded(
             child: _filtrados.isEmpty
                 ? const Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.build_outlined,
-                            size: 52, color: Colors.grey),
+                        Icon(Icons.build_outlined, size: 52, color: Colors.grey),
                         SizedBox(height: 12),
-                        Text('No hay reportes',
-                            style: TextStyle(
-                                color: Colors.grey, fontSize: 14)),
+                        Text('No hay reportes', style: TextStyle(color: Colors.grey, fontSize: 14)),
                       ],
                     ),
                   )
                 : ListView.builder(
-                    padding:
-                        const EdgeInsets.fromLTRB(16, 4, 16, 100),
-                    itemCount: _filtrados.length,
-                    itemBuilder: (context, i) => _ReporteCard(
-                      reporte: _filtrados[i],
-                      onTap: () => _mostrarDetalle(context, _filtrados[i]),
-                    ),
+                    controller: _scrollCtrl,
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
+                    // +1 para el loader al final cuando hay más páginas
+                    itemCount: _filtrados.length + (_hayMas ? 1 : 0),
+                    itemBuilder: (context, i) {
+                      if (i == _filtrados.length) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 20),
+                          child: Center(child: CircularProgressIndicator(
+                            color: Color(0xFF1695A3), strokeWidth: 2,
+                          )),
+                        );
+                      }
+                      return _ReporteCard(
+                        reporte: _filtrados[i],
+                        onTap: () => _mostrarDetalle(context, _filtrados[i]),
+                      );
+                    },
                   ),
           ),
         ],
-      ),  // end Column / end ternary
+      ),
     );
   }
 
-  void _mostrarDetalle(BuildContext context, ReporteMantenimiento reporte) {
+  void _mostrarDetalle(BuildContext context, ReporteResumen reporte) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-          borderRadius:
-              BorderRadius.vertical(top: Radius.circular(24))),builder: (_) => _DetalleReporteSheet(reporte: reporte),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => _DetalleReporteSheet(reporte: reporte),
     ).then((_) => _cargarReportes());
   }
 }
 
 // ─── TARJETA REPORTE ──────────────────────────────────────────────────────────
 class _ReporteCard extends StatelessWidget {
-  final ReporteMantenimiento reporte;
+  final ReporteResumen reporte;
   final VoidCallback onTap;
 
   const _ReporteCard({required this.reporte, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
+    final enProceso = reporte.estado == ReporteEstado.en_proceso;
+    final tieneEspecialista = reporte.especialistaId != null &&
+        reporte.especialistaNombre != null &&
+        reporte.especialistaNombre!.isNotEmpty;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -499,128 +490,203 @@ class _ReporteCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.grey.shade100),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withOpacity(0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2)),
-          ],
+          // Borde resaltado cuando está en proceso
+          border: Border.all(
+            color: enProceso
+                ? const Color(0xFF1695A3).withOpacity(0.4)
+                : Colors.grey.shade100,
+            width: enProceso ? 1.5 : 1,
+          ),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))],
         ),
-        child: Row(
+        child: Column(
           children: [
-            // Barra lateral de prioridad
-            Container(
-              width: 5,
-              height: 100,
-              decoration: BoxDecoration(
-                color: reporte.prioridad.color,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(16),
-                  bottomLeft: Radius.circular(16),
+            Row(
+              children: [
+                // Barra lateral de prioridad
+                Container(
+                  width: 5,
+                  height: tieneEspecialista ? 116 : 100,
+                  decoration: BoxDecoration(
+                    color: reporte.prioridad.color,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(16),
+                      bottomLeft: Radius.circular(16),
+                    ),
+                  ),
                 ),
-              ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Fila superior: tipo + estado
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFACF0F2).withOpacity(0.4),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(reporte.tipoEspecialista,
+                                  style: const TextStyle(color: Color(0xFF1695A3), fontSize: 10, fontWeight: FontWeight.bold)),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: reporte.estado.bgColor,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(reporte.estado.label,
+                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: reporte.estado.textColor)),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        // Descripción
+                        Text(reporte.descripcion,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: Color(0xFF225378), fontWeight: FontWeight.bold, fontSize: 13)),
+                        const SizedBox(height: 4),
+                        Text(reporte.propiedadNombre,
+                            style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                        const SizedBox(height: 8),
+                        // Fila inferior: prioridad + fecha
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(reporte.prioridad.icon, color: reporte.prioridad.color, size: 13),
+                                const SizedBox(width: 4),
+                                Text('Prioridad ${reporte.prioridad.label}',
+                                    style: TextStyle(color: reporte.prioridad.color, fontSize: 11, fontWeight: FontWeight.w600)),
+                              ],
+                            ),
+                            Row(
+                              children: [
+                                if (reporte.costoFinal != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 6),
+                                    child: Icon(Icons.attach_money, color: Colors.green, size: 13),
+                                  ),
+                                Text(reporte.fechaRelativa,
+                                    style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
 
-            // Contenido
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            // Banner del especialista — visible solo cuando hay uno asignado
+            if (tieneEspecialista) ...[
+              Container(
+                margin: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                  color: enProceso
+                      ? const Color(0xFF1695A3).withOpacity(0.07)
+                      : const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: enProceso
+                        ? const Color(0xFF1695A3).withOpacity(0.2)
+                        : Colors.grey.shade100,
+                  ),
+                ),
+                child: Row(
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        // Chip tipo especialista
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFACF0F2).withOpacity(0.4),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(reporte.tipoEspecialista,
-                              style: const TextStyle(
-                                  color: Color(0xFF1695A3),
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold)),
-                        ),
-                        // Badge estado
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: reporte.estado.bgColor,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(reporte.estado.label,
-                              style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  color: reporte.estado.textColor)),
-                        ),
-                      ],
+                    Container(
+                      width: 26, height: 26,
+                      decoration: BoxDecoration(
+                        color: enProceso
+                            ? const Color(0xFF1695A3).withOpacity(0.15)
+                            : const Color(0xFFACF0F2).withOpacity(0.4),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.handyman_outlined,
+                        size: 14,
+                        color: enProceso ? const Color(0xFF1695A3) : Colors.grey,
+                      ),
                     ),
-                    const SizedBox(height: 8),
-
-                    Text(reporte.descripcion,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            color: Color(0xFF225378),
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13)),
-                    const SizedBox(height: 4),
-                    Text(reporte.propiedadNombre,
-                        style: const TextStyle(
-                            color: Colors.grey, fontSize: 11)),
-
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        // Prioridad
-                        Row(
-                          children: [
-                            Icon(reporte.prioridad.icon,
-                                color: reporte.prioridad.color, size: 13),
-                            const SizedBox(width: 4),
-                            Text('Prioridad ${reporte.prioridad.label}',
-                                style: TextStyle(
-                                    color: reporte.prioridad.color,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600)),
-                          ],
-                        ),
-
-                        // Fecha + indicadores
-                        Row(
-                          children: [
-                            if (reporte.especialista != null)
-                              Padding(
-                                padding: const EdgeInsets.only(right: 6),
-                                child: Icon(Icons.handyman_outlined,
-                                    color: const Color(0xFF1695A3),
-                                    size: 13),
-                              ),
-                            if (reporte.costoFinal != null)
-                              Padding(
-                                padding: const EdgeInsets.only(right: 6),
-                                child: Icon(Icons.attach_money,
-                                    color: Colors.green, size: 13),
-                              ),
-                            Text(reporte.fechaRelativa,
-                                style: const TextStyle(
-                                    color: Colors.grey, fontSize: 11)),
-                          ],
-                        ),
-                      ],
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            enProceso ? 'Trabajando en esto' : 'Especialista asignado',
+                            style: TextStyle(
+                              fontSize: 9,
+                              color: enProceso ? const Color(0xFF1695A3) : Colors.grey,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            reporte.especialistaNombre!,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF225378),
+                              fontWeight: FontWeight.bold,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
                     ),
+                    if (enProceso)
+                      Container(
+                        width: 7, height: 7,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF1695A3),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
                   ],
                 ),
               ),
-            ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── STAT CARD ────────────────────────────────────────────────────────────────
+class _StatCard extends StatelessWidget {
+  final int count;
+  final String label;
+  final Color color;
+
+  const _StatCard({required this.count, required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade100),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6)],
+        ),
+        child: Column(
+          children: [
+            Text('$count', style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 18)),
+            const SizedBox(height: 2),
+            Text(label, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey, fontSize: 9)),
           ],
         ),
       ),
@@ -629,8 +695,9 @@ class _ReporteCard extends StatelessWidget {
 }
 
 // ─── BOTTOM SHEET DETALLE ─────────────────────────────────────────────────────
+// Carga el detalle completo (con especialista y reseñas) solo cuando se abre
 class _DetalleReporteSheet extends StatefulWidget {
-  final ReporteMantenimiento reporte;
+  final ReporteResumen reporte;
   const _DetalleReporteSheet({required this.reporte});
 
   @override
@@ -638,7 +705,95 @@ class _DetalleReporteSheet extends StatefulWidget {
 }
 
 class _DetalleReporteSheetState extends State<_DetalleReporteSheet> {
+  ReporteDetalle? _detalle;
+  EspecialistaCompleto? _especialista;
+  List<ResenaResumen> _resenas = [];
+  bool _cargando = true;
+  String? _errorCarga;
+
+  // campos de reseña
   int _resenaCalif = 0;
+  final _resenaComentarioCtrl = TextEditingController();
+  bool _enviandoResena = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarDetalle();
+  }
+
+  @override
+  void dispose() {
+    _resenaComentarioCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _cargarDetalle() async {
+    try {
+      final det = await ReportesMantenimientoService.detalle(widget.reporte.id);
+
+      EspecialistaCompleto? esp;
+      if (det.especialistaId != null) {
+        final espDet = await EspecialistasService.detalle(det.especialistaId!);
+        esp = EspecialistaCompleto.fromDetalle(espDet);
+      }
+
+      final resenas = (det.resenas).map<ResenaResumen>((r) => ResenaResumen(
+        id: r['id'] ?? 0,
+        calificacion: r['calificacion'] ?? 0,
+        comentario: r['comentario'] ?? '',
+        createdAt: DateTime.tryParse(r['created_at'] ?? '') ?? DateTime.now(),
+      )).toList();
+
+      setState(() {
+        _detalle = det;
+        _especialista = esp;
+        _resenas = resenas;
+        _cargando = false;
+      });
+    } catch (_) {
+      setState(() { _errorCarga = 'No se pudo cargar el detalle'; _cargando = false; });
+    }
+  }
+
+  Future<void> _enviarResena() async {
+    if (_resenaCalif == 0 || _especialista == null || _detalle == null) return;
+    setState(() => _enviandoResena = true);
+    try {
+      await ResenasService.crear({
+        'especialista': _especialista!.id,
+        'reporte': _detalle!.id,
+        'calificacion': _resenaCalif,
+        'comentario': _resenaComentarioCtrl.text.trim(),
+      });
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Reseña enviada correctamente'),
+          backgroundColor: Color(0xFF1695A3),
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(e.message),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Error al enviar reseña'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _enviandoResena = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -648,366 +803,327 @@ class _DetalleReporteSheetState extends State<_DetalleReporteSheet> {
       maxChildSize: 0.95,
       minChildSize: 0.4,
       expand: false,
-      builder: (_, ctrl) => SingleChildScrollView(
-        controller: ctrl,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Handle
-              Center(
-                child: Container(
-                  width: 40, height: 4,
-                  decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(2)),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Encabezado
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 6,
-                    height: 50,
-                    decoration: BoxDecoration(
-                      color: r.prioridad.color,
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFACF0F2)
-                                    .withOpacity(0.4),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(r.tipoEspecialista,
-                                  style: const TextStyle(
-                                      color: Color(0xFF1695A3),
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold)),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: r.estado.bgColor,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Text(r.estado.label,
-                                  style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                      color: r.estado.textColor)),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Text(r.descripcion,
-                            style: const TextStyle(
-                                color: Color(0xFF225378),
-                                fontWeight: FontWeight.bold,
-                                fontSize: 15)),
-                        const SizedBox(height: 2),
-                        Text(r.propiedadNombre,
-                            style: const TextStyle(
-                                color: Colors.grey, fontSize: 12)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Divider(color: Colors.grey.shade100),
-              const SizedBox(height: 12),
-
-              // Detalles
-              _sheetSection('Detalles del Reporte'),
-              const SizedBox(height: 10),
-              _detailRow('Prioridad', r.prioridad.label,
-                  valueColor: r.prioridad.color),
-              _detailRow('Creado', r.fechaRelativa),
-              if (r.costoEstimado != null)
-                _detailRow('Costo estimado',
-                    '\$${r.costoEstimado!.toStringAsFixed(2)}'),
-              if (r.costoFinal != null)
-                _detailRow('Costo final',
-                    '\$${r.costoFinal!.toStringAsFixed(2)}',
-                    valueColor: Colors.green),
-              if (r.fechaResolucion != null)
-                _detailRow('Resuelto el',
-                    '${r.fechaResolucion!.day.toString().padLeft(2, '0')}/'
-                    '${r.fechaResolucion!.month.toString().padLeft(2, '0')}/'
-                    '${r.fechaResolucion!.year}'),
-
-              // Especialista asignado
-              if (r.especialista != null) ...[
-                const SizedBox(height: 16),
-                _sheetSection('Especialista Asignado'),
-                const SizedBox(height: 10),
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Colors.grey.shade100),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 48, height: 48,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFACF0F2),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.handyman_outlined,
-                            color: Color(0xFF1695A3), size: 22),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(r.especialista!.nombre,
-                                style: const TextStyle(
-                                    color: Color(0xFF225378),
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14)),
-                            Text(r.especialista!.especialidad,
-                                style: const TextStyle(
-                                    color: Colors.grey, fontSize: 12)),
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                const Icon(Icons.star,
-                                    color: Color(0xFFEB7F00), size: 13),
-                                const SizedBox(width: 3),
-                                Text(
-                                    r.especialista!.calificacion
-                                        .toStringAsFixed(1),
-                                    style: const TextStyle(
-                                        color: Color(0xFF225378),
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 12)),
-                                const SizedBox(width: 8),
-                                Text(
-                                    '${r.especialista!.aniosExperiencia} años exp.',
-                                    style: const TextStyle(
-                                        color: Colors.grey, fontSize: 11)),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      // Botones llamar + WhatsApp
-                      Column(
-                        children: [
-                          _ContactBtn(
-                            icon: Icons.phone_outlined,
-                            color: const Color(0xFF1695A3),
-                            tooltip: 'Llamar',
-                            onTap: () => _llamar(context, r.especialista!.telefono),
-                          ),
-                          const SizedBox(height: 6),
-                          _ContactBtn(
-                            icon: Icons.chat_outlined,
-                            color: const Color(0xFF25D366),
-                            tooltip: 'WhatsApp',
-                            onTap: () => _abrirWhatsApp(context, r.especialista!.telefono),
-                          ),
-                        ],
-                      ),
-                    ],
+      builder: (_, ctrl) {
+        if (_cargando) {
+          return const Center(child: Padding(
+            padding: EdgeInsets.all(40),
+            child: CircularProgressIndicator(color: Color(0xFF1695A3)),
+          ));
+        }
+        if (_errorCarga != null) {
+          return Center(child: Text(_errorCarga!, style: const TextStyle(color: Colors.red)));
+        }
+        return SingleChildScrollView(
+          controller: ctrl,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40, height: 4,
+                    decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
                   ),
                 ),
-              ],
-
-              // Reseñas del especialista
-              if (r.resenas.isNotEmpty) ...[
                 const SizedBox(height: 16),
-                _sheetSection('Reseñas'),
-                const SizedBox(height: 10),
-                ...r.resenas.map((res) => Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                // Encabezado
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 6, height: 50,
+                      decoration: BoxDecoration(color: r.prioridad.color, borderRadius: BorderRadius.circular(3)),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
-                            children: List.generate(5, (i) => Icon(
-                              i < res.calificacion
-                                  ? Icons.star
-                                  : Icons.star_border,
-                              color: const Color(0xFFEB7F00),
-                              size: 14,
-                            )),
+                            children: [
+                              _chip(r.tipoEspecialista, const Color(0xFFACF0F2), const Color(0xFF1695A3)),
+                              const SizedBox(width: 8),
+                              _estadoBadge(r.estado),
+                            ],
                           ),
-                          const SizedBox(height: 4),
-                          Text(res.comentario,
-                              style: const TextStyle(
-                                  color: Color(0xFF225378),
-                                  fontSize: 12)),
+                          const SizedBox(height: 6),
+                          Text(r.descripcion,
+                              style: const TextStyle(color: Color(0xFF225378), fontWeight: FontWeight.bold, fontSize: 15)),
+                          const SizedBox(height: 2),
+                          Text(r.propiedadNombre, style: const TextStyle(color: Colors.grey, fontSize: 12)),
                         ],
                       ),
-                    )),
-              ],
-
-              // Calificar especialista (si está resuelto y sin reseña)
-              if (r.estado == ReporteEstado.resuelto &&
-                  r.especialista != null &&
-                  r.resenas.isEmpty) ...[
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 16),
-                _sheetSection('Calificar Especialista'),
-                const SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(5, (i) => GestureDetector(
-                    onTap: () => setState(() => _resenaCalif = i + 1),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: Icon(
-                        i < _resenaCalif ? Icons.star : Icons.star_border,
-                        color: const Color(0xFFEB7F00),
-                        size: 32,
-                      ),
-                    ),
-                  )),
-                ),
+                Divider(color: Colors.grey.shade100),
                 const SizedBox(height: 12),
-                if (_resenaCalif > 0)
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        try {
-                          await ResenasService.crear({
-                            'especialista': r.especialista!.id,
-                            'reporte': r.id,
-                            'calificacion': _resenaCalif,
-                            'comentario': '',
-                          });
-                          if (context.mounted) {
-                            Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Reseña enviada correctamente'),
-                                backgroundColor: Color(0xFF1695A3),
-                                behavior: SnackBarBehavior.floating,
-                              ),
-                            );
-                          }
-                        } on ApiException catch (e) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                              content: Text(e.message),
-                              backgroundColor: Colors.red,
-                              behavior: SnackBarBehavior.floating,
-                            ));
-                          }
-                        } catch (_) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                              content: Text('Error al enviar reseña'),
-                              backgroundColor: Colors.red,
-                              behavior: SnackBarBehavior.floating,
-                            ));
-                          }
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFEB7F00),
-                        foregroundColor: Colors.white,
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                        elevation: 0,
+                _sectionTitle('Detalles del Reporte'),
+                const SizedBox(height: 10),
+                _detailRow('Prioridad', r.prioridad.label, valueColor: r.prioridad.color),
+                _detailRow('Creado', r.fechaRelativa),
+                if (r.costoEstimado != null)
+                  _detailRow('Costo estimado', '\$${r.costoEstimado!.toStringAsFixed(2)}'),
+                if (r.costoFinal != null)
+                  _detailRow('Costo final', '\$${r.costoFinal!.toStringAsFixed(2)}', valueColor: Colors.green),
+                if (_detalle?.fechaResolucion != null) ...[
+                  Builder(builder: (_) {
+                    final fecha = DateTime.tryParse(_detalle!.fechaResolucion!);
+                    if (fecha == null) return const SizedBox.shrink();
+                    return _detailRow('Resuelto el',
+                      '${fecha.day.toString().padLeft(2, '0')}/${fecha.month.toString().padLeft(2, '0')}/${fecha.year}');
+                  }),
+                ],
+                // Especialista
+                if (_especialista != null) ...[
+                  const SizedBox(height: 16),
+                  _sectionTitle('Especialista Asignado'),
+                  const SizedBox(height: 10),
+                  _EspecialistaCard(
+                    especialista: _especialista!,
+                    onLlamar: () => _llamar(context, _especialista!.telefono),
+                    onWhatsApp: () => _abrirWhatsApp(context, _especialista!.telefono),
+                  ),
+                ],
+                // Reseñas existentes
+                if (_resenas.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  _sectionTitle('Reseñas'),
+                  const SizedBox(height: 10),
+                  ..._resenas.map((res) => _ResenaCard(resena: res)),
+                ],
+                // Formulario para calificar (solo si resuelto, tiene especialista y sin reseña propia)
+                if (r.estado == ReporteEstado.resuelto &&
+                    _especialista != null &&
+                    _resenas.isEmpty) ...[
+                  const SizedBox(height: 16),
+                  _sectionTitle('Calificar Especialista'),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(5, (i) => GestureDetector(
+                      onTap: () => setState(() => _resenaCalif = i + 1),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: Icon(
+                          i < _resenaCalif ? Icons.star : Icons.star_border,
+                          color: const Color(0xFFEB7F00),
+                          size: 32,
+                        ),
                       ),
-                      child: const Text('Enviar Reseña',
-                          style: TextStyle(fontWeight: FontWeight.bold)),
+                    )),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _resenaComentarioCtrl,
+                    maxLines: 3,
+                    style: const TextStyle(fontSize: 13, color: Color(0xFF225378)),
+                    decoration: InputDecoration(
+                      hintText: 'Escribe un comentario (opcional)...',
+                      hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                      contentPadding: const EdgeInsets.all(12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: Colors.grey.shade200),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: Colors.grey.shade200),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Color(0xFF1695A3), width: 2),
+                      ),
                     ),
                   ),
-              ],
-
-              // Botón editar
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.pushNamed(context, '/mantenimiento/editar',
-                        arguments: r.id).then((_) {
-                      Navigator.pop(context, true);
-                    });
-                  },
-                  icon: const Icon(Icons.edit_outlined,
-                      color: Color(0xFF225378), size: 18),
-                  label: const Text('Editar Reporte',
-                      style: TextStyle(
-                          color: Color(0xFF225378),
-                          fontWeight: FontWeight.bold)),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    side: const BorderSide(color: Color(0xFF225378)),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
+                  const SizedBox(height: 12),
+                  if (_resenaCalif > 0)
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _enviandoResena ? null : _enviarResena,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFEB7F00),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          elevation: 0,
+                        ),
+                        child: _enviandoResena
+                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            : const Text('Enviar Reseña', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                ],
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.pushNamed(context, '/mantenimiento/editar', arguments: r.id)
+                          .then((_) => Navigator.pop(context, true));
+                    },
+                    icon: const Icon(Icons.edit_outlined, color: Color(0xFF225378), size: 18),
+                    label: const Text('Editar Reporte',
+                        style: TextStyle(color: Color(0xFF225378), fontWeight: FontWeight.bold)),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      side: const BorderSide(color: Color(0xFF225378)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
-  static Widget _sheetSection(String title) {
+  static Widget _sectionTitle(String title) {
     return Text(title,
-        style: const TextStyle(
-            color: Color(0xFF225378),
-            fontWeight: FontWeight.bold,
-            fontSize: 14));
+        style: const TextStyle(color: Color(0xFF225378), fontWeight: FontWeight.bold, fontSize: 14));
   }
 
-  static Widget _detailRow(String label, String value,
-      {Color? valueColor}) {
+  static Widget _detailRow(String label, String value, {Color? valueColor}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label,
-              style:
-                  const TextStyle(color: Colors.grey, fontSize: 12)),
-          Text(value,
-              style: TextStyle(
-                  color: valueColor ?? const Color(0xFF225378),
-                  fontWeight: FontWeight.w600,
-                  fontSize: 12)),
+          Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+          Text(value, style: TextStyle(
+            color: valueColor ?? const Color(0xFF225378),
+            fontWeight: FontWeight.w600,
+            fontSize: 12,
+          )),
+        ],
+      ),
+    );
+  }
+
+  static Widget _chip(String text, Color bg, Color textColor) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(color: bg.withOpacity(0.4), borderRadius: BorderRadius.circular(20)),
+      child: Text(text, style: TextStyle(color: textColor, fontSize: 10, fontWeight: FontWeight.bold)),
+    );
+  }
+
+  static Widget _estadoBadge(ReporteEstado estado) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(color: estado.bgColor, borderRadius: BorderRadius.circular(10)),
+      child: Text(estado.label,
+          style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: estado.textColor)),
+    );
+  }
+}
+
+// ─── ESPECIALISTA CARD ────────────────────────────────────────────────────────
+class _EspecialistaCard extends StatelessWidget {
+  final EspecialistaCompleto especialista;
+  final VoidCallback onLlamar;
+  final VoidCallback onWhatsApp;
+
+  const _EspecialistaCard({
+    required this.especialista,
+    required this.onLlamar,
+    required this.onWhatsApp,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade100),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48, height: 48,
+            decoration: const BoxDecoration(color: Color(0xFFACF0F2), shape: BoxShape.circle),
+            child: const Icon(Icons.handyman_outlined, color: Color(0xFF1695A3), size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(especialista.nombre,
+                    style: const TextStyle(color: Color(0xFF225378), fontWeight: FontWeight.bold, fontSize: 14)),
+                Text(especialista.especialidad, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(Icons.star, color: Color(0xFFEB7F00), size: 13),
+                    const SizedBox(width: 3),
+                    Text(especialista.calificacion.toStringAsFixed(1),
+                        style: const TextStyle(color: Color(0xFF225378), fontWeight: FontWeight.bold, fontSize: 12)),
+                    const SizedBox(width: 8),
+                    Text('${especialista.aniosExperiencia} años exp.',
+                        style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Column(
+            children: [
+              _ContactBtn(icon: Icons.phone_outlined, color: const Color(0xFF1695A3), tooltip: 'Llamar', onTap: onLlamar),
+              const SizedBox(height: 6),
+              _ContactBtn(icon: Icons.chat_outlined, color: const Color(0xFF25D366), tooltip: 'WhatsApp', onTap: onWhatsApp),
+            ],
+          ),
         ],
       ),
     );
   }
 }
 
-// ─── BOTÓN CONTACTO ──────────────────────────────────────────────────────────
+// ─── RESEÑA CARD ──────────────────────────────────────────────────────────────
+class _ResenaCard extends StatelessWidget {
+  final ResenaResumen resena;
+  const _ResenaCard({required this.resena});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: List.generate(5, (i) => Icon(
+              i < resena.calificacion ? Icons.star : Icons.star_border,
+              color: const Color(0xFFEB7F00),
+              size: 14,
+            )),
+          ),
+          if (resena.comentario.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(resena.comentario, style: const TextStyle(color: Color(0xFF225378), fontSize: 12)),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ─── BOTÓN DE CONTACTO ────────────────────────────────────────────────────────
 class _ContactBtn extends StatelessWidget {
   final IconData icon;
   final Color color;
@@ -1030,59 +1146,10 @@ class _ContactBtn extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.10),
+            color: color.withOpacity(0.1),
             shape: BoxShape.circle,
-            border: Border.all(color: color.withOpacity(0.3)),
           ),
-          child: Icon(icon, color: color, size: 16),
-        ),
-      ),
-    );
-  }
-}
-
-// ─── WIDGETS AUXILIARES ───────────────────────────────────────────────────────
-class _StatCard extends StatelessWidget {
-  final int count;
-  final String label;
-  final Color color;
-
-  const _StatCard({
-    required this.count,
-    required this.label,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade100),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withOpacity(0.03), blurRadius: 6),
-          ],
-        ),
-        child: Column(
-          children: [
-            Text(count.toString(),
-                style: TextStyle(
-                    color: color,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold)),
-            const SizedBox(height: 3),
-            Text(label,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    color: Colors.grey,
-                    fontSize: 9,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.5)),
-          ],
+          child: Icon(icon, color: color, size: 18),
         ),
       ),
     );

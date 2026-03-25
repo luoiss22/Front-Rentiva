@@ -29,12 +29,13 @@ class _EditarReporteScreenState extends State<EditarReporteScreen> {
   String _prioridad        = 'media';
   String _estado           = 'abierto';
   int?   _propiedadId;
+  int?   _especialistaId;
   int?   _reporteId;
 
   List<Map<String, dynamic>> _propiedades = [];
-
-  // TODO: GET /api/propiedades/
-  // (ahora se cargan del API)
+  List<EspecialistaItem> _especialistasCargados = [];
+  EspecialistaItem? _especialistaActual; // el que ya tiene asignado
+  bool _loadingEspecialistas = false;
 
   static const List<String> _tiposRapidos = [
     'Fontanero', 'Electricista', 'Cerrajero',
@@ -108,6 +109,23 @@ class _EditarReporteScreenState extends State<EditarReporteScreen> {
       }
       _reporteId = id;
       final det = await ReportesMantenimientoService.detalle(id);
+
+      // Si tiene especialista asignado, cargar su info para mostrarla
+      EspecialistaItem? espActual;
+      if (det.especialistaId != null) {
+        try {
+          final espDet = await EspecialistasService.detalle(det.especialistaId!);
+          espActual = EspecialistaItem(
+            id: espDet.id,
+            nombre: espDet.nombre,
+            especialidad: espDet.especialidad,
+            ciudad: espDet.ciudad,
+            calificacion: espDet.calificacion,
+            disponible: espDet.disponible,
+          );
+        } catch (_) {}
+      }
+
       setState(() {
         _descripcionCtrl.text   = det.descripcion;
         _costoEstimadoCtrl.text = det.costoEstimado?.toStringAsFixed(2) ?? '';
@@ -116,12 +134,32 @@ class _EditarReporteScreenState extends State<EditarReporteScreen> {
         _prioridad              = det.prioridad;
         _estado                 = det.estado;
         _propiedadId            = det.propiedadId;
+        _especialistaId         = det.especialistaId;
+        _especialistaActual     = espActual;
         _loadingData            = false;
       });
+
+      // Cargar lista de especialistas del mismo tipo en segundo plano
+      if (det.tipoEspecialista.isNotEmpty) {
+        _cargarEspecialistas(det.tipoEspecialista);
+      }
     } on ApiException catch (e) {
       setState(() { _loadError = e.message; _loadingData = false; });
     } catch (e) {
       setState(() { _loadError = 'Error de conexión'; _loadingData = false; });
+    }
+  }
+
+  Future<void> _cargarEspecialistas(String tipo) async {
+    setState(() => _loadingEspecialistas = true);
+    try {
+      final items = await EspecialistasService.listar(especialidad: tipo);
+      setState(() {
+        _especialistasCargados = items;
+        _loadingEspecialistas = false;
+      });
+    } catch (_) {
+      setState(() { _especialistasCargados = []; _loadingEspecialistas = false; });
     }
   }
 
@@ -142,6 +180,7 @@ class _EditarReporteScreenState extends State<EditarReporteScreen> {
         'tipo_especialista': _tipoEspecialista,
         'prioridad':         _prioridad,
         'estado':            _estado,
+        'especialista':      _especialistaId,
         'costo_estimado': _costoEstimadoCtrl.text.isEmpty
             ? null : _costoEstimadoCtrl.text,
         'costo_final': _costoFinalCtrl.text.isEmpty
@@ -325,8 +364,15 @@ class _EditarReporteScreenState extends State<EditarReporteScreen> {
                   children: _tiposRapidos.map((tipo) {
                     final sel = _tipoEspecialista == tipo;
                     return GestureDetector(
-                      onTap: () =>
-                          setState(() => _tipoEspecialista = tipo),
+                      onTap: () {
+                        setState(() {
+                          _tipoEspecialista = tipo;
+                          // Al cambiar tipo, limpiamos el especialista seleccionado
+                          _especialistaId = null;
+                          _especialistaActual = null;
+                        });
+                        _cargarEspecialistas(tipo);
+                      },
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 140),
                         padding: const EdgeInsets.symmetric(
@@ -374,7 +420,12 @@ class _EditarReporteScreenState extends State<EditarReporteScreen> {
               ),
               const SizedBox(height: 16),
 
-              // ── 5. Prioridad ─────────────────────────────────────────
+              // ── 5. Especialista ──────────────────────────────────────
+              if (_tipoEspecialista.isNotEmpty)
+                _buildSeccionEspecialista(),
+              const SizedBox(height: 16),
+
+              // ── 6. Prioridad ─────────────────────────────────────────
               _card(
                 icon: Icons.flag_outlined,
                 iconColor: const Color(0xFFEB7F00),
@@ -482,6 +533,184 @@ class _EditarReporteScreenState extends State<EditarReporteScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  // ── SECCIÓN ESPECIALISTA ──────────────────────────────────────────────────
+  Widget _buildSeccionEspecialista() {
+    return _card(
+      icon: Icons.handyman_outlined,
+      iconColor: const Color(0xFF1695A3),
+      title: 'Especialista Asignado',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Especialista actual (si tiene uno)
+          if (_especialistaActual != null && _especialistaId == _especialistaActual!.id) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1695A3).withOpacity(0.06),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF1695A3).withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40, height: 40,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFACF0F2), shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        _especialistaActual!.nombre[0].toUpperCase(),
+                        style: const TextStyle(
+                          color: Color(0xFF1695A3), fontSize: 18, fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(_especialistaActual!.nombre,
+                            style: const TextStyle(
+                                color: Color(0xFF225378), fontWeight: FontWeight.bold, fontSize: 13)),
+                        Text(_especialistaActual!.especialidad,
+                            style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                        Row(
+                          children: [
+                            const Icon(Icons.star, color: Color(0xFFEB7F00), size: 12),
+                            const SizedBox(width: 3),
+                            Text(_especialistaActual!.calificacion.toStringAsFixed(1),
+                                style: const TextStyle(
+                                    color: Color(0xFF225378), fontWeight: FontWeight.bold, fontSize: 11)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Botón para quitar
+                  GestureDetector(
+                    onTap: () => setState(() {
+                      _especialistaId = null;
+                    }),
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.close, color: Colors.red.shade400, size: 14),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text('Cambiar por otro especialista:',
+                style: TextStyle(color: Colors.grey.shade500, fontSize: 11)),
+            const SizedBox(height: 8),
+          ] else if (_especialistaId == null) ...[
+            Text('Sin especialista asignado. Selecciona uno:',
+                style: TextStyle(color: Colors.grey.shade500, fontSize: 11)),
+            const SizedBox(height: 8),
+          ],
+
+          // Lista de especialistas disponibles
+          if (_loadingEspecialistas)
+            const Center(child: Padding(
+              padding: EdgeInsets.all(16),
+              child: CircularProgressIndicator(color: Color(0xFF1695A3), strokeWidth: 2),
+            ))
+          else if (_especialistasCargados.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Text('No hay especialistas disponibles para este tipo.',
+                  style: TextStyle(color: Colors.grey.shade400, fontSize: 12)),
+            )
+          else
+            ..._especialistasCargados.map((esp) {
+              final isSelected = _especialistaId == esp.id;
+              return GestureDetector(
+                onTap: () => setState(() =>
+                    _especialistaId = isSelected ? null : esp.id),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? const Color(0xFF1695A3).withOpacity(0.05)
+                        : Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isSelected
+                          ? const Color(0xFF1695A3)
+                          : Colors.grey.shade200,
+                      width: isSelected ? 2 : 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 38, height: 38,
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? const Color(0xFF1695A3).withOpacity(0.15)
+                              : const Color(0xFFACF0F2).withOpacity(0.3),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Text(esp.nombre[0].toUpperCase(),
+                              style: TextStyle(
+                                color: isSelected ? const Color(0xFF1695A3) : const Color(0xFF225378),
+                                fontSize: 16, fontWeight: FontWeight.bold,
+                              )),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(esp.nombre,
+                                style: const TextStyle(
+                                    color: Color(0xFF225378), fontWeight: FontWeight.bold, fontSize: 12)),
+                            Row(
+                              children: [
+                                const Icon(Icons.star, color: Color(0xFFEB7F00), size: 11),
+                                const SizedBox(width: 2),
+                                Text(esp.calificacion.toStringAsFixed(1),
+                                    style: const TextStyle(
+                                        color: Color(0xFF225378), fontWeight: FontWeight.bold, fontSize: 11)),
+                                if (!esp.disponible) ...[
+                                  const SizedBox(width: 6),
+                                  Text('No disponible',
+                                      style: TextStyle(color: Colors.grey.shade400, fontSize: 9)),
+                                ],
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (isSelected)
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF1695A3), shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.check, color: Colors.white, size: 14),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+        ],
       ),
     );
   }
