@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/services/api_client.dart';
+import '../../../core/services/storage_service.dart';
 import '../../../data/services/mantenimiento_service.dart';
 import '../../../core/widgets/app_header.dart';
 import '../../../core/widgets/bottom_navbar.dart';
@@ -187,12 +188,14 @@ class EspecialistaCompleto {
 
 class ResenaResumen {
   final int id;
+  final int propietarioId;
   final int calificacion;
   final String comentario;
   final DateTime createdAt;
 
   const ResenaResumen({
     required this.id,
+    required this.propietarioId,
     required this.calificacion,
     required this.comentario,
     required this.createdAt,
@@ -710,6 +713,7 @@ class _DetalleReporteSheetState extends State<_DetalleReporteSheet> {
   List<ResenaResumen> _resenas = [];
   bool _cargando = true;
   String? _errorCarga;
+  int? _propietarioActualId; // id del usuario logueado
 
   // campos de reseña
   int _resenaCalif = 0;
@@ -730,6 +734,10 @@ class _DetalleReporteSheetState extends State<_DetalleReporteSheet> {
 
   Future<void> _cargarDetalle() async {
     try {
+      // Cargar el id del propietario logueado desde storage
+      final userData = await StorageService.getUser();
+      final propietarioActualId = userData?['id'] as int?;
+
       final det = await ReportesMantenimientoService.detalle(widget.reporte.id);
 
       EspecialistaCompleto? esp;
@@ -740,6 +748,7 @@ class _DetalleReporteSheetState extends State<_DetalleReporteSheet> {
 
       final resenas = (det.resenas).map<ResenaResumen>((r) => ResenaResumen(
         id: r['id'] ?? 0,
+        propietarioId: r['propietario'] as int? ?? 0,
         calificacion: r['calificacion'] ?? 0,
         comentario: r['comentario'] ?? '',
         createdAt: DateTime.tryParse(r['created_at'] ?? '') ?? DateTime.now(),
@@ -749,6 +758,7 @@ class _DetalleReporteSheetState extends State<_DetalleReporteSheet> {
         _detalle = det;
         _especialista = esp;
         _resenas = resenas;
+        _propietarioActualId = propietarioActualId;
         _cargando = false;
       });
     } catch (_) {
@@ -894,10 +904,11 @@ class _DetalleReporteSheetState extends State<_DetalleReporteSheet> {
                   const SizedBox(height: 10),
                   ..._resenas.map((res) => _ResenaCard(resena: res)),
                 ],
-                // Formulario para calificar (solo si resuelto, tiene especialista y sin reseña propia)
+                // Formulario para calificar (solo si resuelto, tiene especialista y el propietario actual no ha calificado)
                 if (r.estado == ReporteEstado.resuelto &&
                     _especialista != null &&
-                    _resenas.isEmpty) ...[
+                    _propietarioActualId != null &&
+                    !_resenas.any((res) => res.propietarioId == _propietarioActualId)) ...[
                   const SizedBox(height: 16),
                   _sectionTitle('Calificar Especialista'),
                   const SizedBox(height: 10),

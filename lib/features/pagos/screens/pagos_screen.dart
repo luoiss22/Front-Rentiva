@@ -292,36 +292,30 @@ class _PagosScreenState extends State<PagosScreen> {
         pago: pago,
         onMarcarRecibido: (pago.estado == PagoEstado.pendiente ||
                 pago.estado == PagoEstado.vencido)
-            ? () => _marcarComoRecibido(pago)
+            ? (metodo, referencia) => _marcarComoRecibido(pago, metodo, referencia)
             : null,
       ),
     );
   }
 
   // ── MARCAR COMO RECIBIDO ──────────────────────────────────────────────────
-  void _marcarComoRecibido(Pago pago) async {
-    try {
-      await ApiClient.patch('/pagos/${pago.id}/', {
-        'estado': 'pagado',
-        'fecha_pago': DateTime.now().toIso8601String().split('T').first,
-      });
-      await _cargarPagos();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Pago de ${pago.inquilinoNombre} marcado como recibido'),
-          backgroundColor: const Color(0xFF15803D),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ));
-      }
-    } on ApiException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(e.message),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-        ));
-      }
+  Future<void> _marcarComoRecibido(Pago pago, String? metodo, String? referencia) async {
+    final body = <String, dynamic>{
+      'estado':     'pagado',
+      'fecha_pago': DateTime.now().toIso8601String().split('T').first,
+    };
+    if (metodo != null) body['metodo_pago'] = metodo;
+    if (referencia != null && referencia.isNotEmpty) body['referencia'] = referencia;
+
+    await ApiClient.patch('/pagos/${pago.id}/', body);
+    await _cargarPagos();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Pago de ${pago.inquilinoNombre} marcado como recibido'),
+        backgroundColor: const Color(0xFF15803D),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ));
     }
   }
 

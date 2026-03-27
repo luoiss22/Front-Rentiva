@@ -68,20 +68,21 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   Future<void> _cargarDatos() async {
     setState(() { _loading = true; _error = null; });
     try {
-      // Cargar propietarios (usuarios + admins)
+      // Cargar propietarios (usuarios)
       final propData = await ApiClient.get('/propietarios/');
       final propResults = propData['results'] as List;
 
       final List<UsuarioAdmin> usuarios = [];
-      final List<Admin> admins = [];
-
       for (final json in propResults) {
-        final rol = json['rol'] ?? 'propietario';
-        if (rol == 'admin') {
-          admins.add(Admin.fromJson(json));
-        } else {
-          usuarios.add(UsuarioAdmin.fromJson(json));
-        }
+        usuarios.add(UsuarioAdmin.fromJson(json));
+      }
+
+      // Cargar administradores desde su propio endpoint
+      final adminData = await ApiClient.get('/administradores/');
+      final adminResults = adminData['results'] as List;
+      final List<Admin> admins = [];
+      for (final json in adminResults) {
+        admins.add(Admin.fromJson(json));
       }
 
       // Cargar especialistas
@@ -184,7 +185,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     cuerpo: 'Esta accion revocara el acceso del administrador permanentemente.',
     onConfirm: () async {
       try {
-        await ApiClient.delete('/propietarios/$id/');
+        await ApiClient.delete('/administradores/$id/');
         setState(() => _admins.removeWhere((a) => a.id == id));
         _snack('Administrador eliminado', Colors.red.shade400);
       } on ApiException catch (e) {
@@ -281,7 +282,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         'email': _emailEspCtrl.text.trim(),
         'ciudad': _ciudadEspCtrl.text.trim(),
         'estado_geografico': _estadoGeoCtrl.text.trim(),
-        'calificacion': '5.00',
         'anios_experiencia': int.tryParse(_aniosExpCtrl.text.trim()) ?? 0,
         'disponible': _disponible,
       };
@@ -516,7 +516,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
             const SizedBox(height: 20), Divider(color: Colors.grey.shade100), const SizedBox(height: 12),
             adminSeccion('Informacion Profesional'), const SizedBox(height: 10),
             adminFila('Especialidad', e.especialidad),
-            adminFila('Anios de Experiencia', '${e.aniosExperiencia} anios'),
+            adminFila('Años de Experiencia', '${e.aniosExperiencia} anios'),
             adminFila('Calificacion', '${e.calificacion.toStringAsFixed(2)}'),
             const SizedBox(height: 14),
             adminSeccion('Contacto y Ubicacion'), const SizedBox(height: 10),
@@ -873,7 +873,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
           ]),
           const SizedBox(height: 14),
 
-          adminEspLabel('Anios de Experiencia'), const SizedBox(height: 5),
+          adminEspLabel('Años de Experiencia'), const SizedBox(height: 5),
           TextFormField(controller: _aniosExpCtrl, keyboardType: TextInputType.number,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(2)],
             validator: (v) => v!.trim().isEmpty ? 'Requerido' : null,

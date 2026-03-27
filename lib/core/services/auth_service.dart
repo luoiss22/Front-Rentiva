@@ -1,21 +1,33 @@
 import 'api_client.dart';
 import 'storage_service.dart';
 import '../models/propietario_model.dart';
+import '../models/admin_model.dart';
 
 class AuthResult {
-  final PropietarioModel propietario;
+  /// Puede ser PropietarioModel o AdminModel
+  final dynamic usuario;
+  final String userType; // 'admin' o 'propietario'
   final String accessToken;
   final String refreshToken;
 
   AuthResult({
-    required this.propietario,
+    required this.usuario,
+    required this.userType,
     required this.accessToken,
     required this.refreshToken,
   });
+
+  bool get esAdmin => userType == 'admin';
+
+  String get nombre {
+    if (usuario is PropietarioModel) return (usuario as PropietarioModel).nombreCompleto;
+    if (usuario is AdminModel) return (usuario as AdminModel).nombreCompleto;
+    return '';
+  }
 }
 
 class AuthService {
-  /// POST /auth/login/  → guarda tokens y retorna AuthResult
+  /// POST /auth/login/
   static Future<AuthResult> login({
     required String email,
     required String password,
@@ -28,7 +40,7 @@ class AuthService {
     return _processAuthResponse(data);
   }
 
-  /// POST /auth/registro/  → crea cuenta y devuelve AuthResult
+  /// POST /auth/registro/
   static Future<AuthResult> register({
     required String nombre,
     required String apellidos,
@@ -39,25 +51,39 @@ class AuthService {
     final data = await ApiClient.post(
       '/auth/registro/',
       {
-        'nombre':    nombre,
+        'nombre': nombre,
         'apellidos': apellidos,
-        'email':     email,
-        'telefono':  telefono,
-        'password':  password,
+        'email': email,
+        'telefono': telefono,
+        'password': password,
       },
       auth: false,
     );
     return _processAuthResponse(data);
   }
 
-
-  /// GET /auth/me/  → perfil del usuario autenticado
-  static Future<PropietarioModel> me() async {
+  /// GET /auth/me/ — perfil del usuario autenticado
+  static Future<AuthResult> me() async {
     final data = await ApiClient.get('/auth/me/');
-    return PropietarioModel.fromJson(data);
+    final userType = data['user_type'] as String? ?? 'propietario';
+    final userData = data['usuario'] as Map<String, dynamic>;
+
+    dynamic usuario;
+    if (userType == 'admin') {
+      usuario = AdminModel.fromJson(userData);
+    } else {
+      usuario = PropietarioModel.fromJson(userData);
+    }
+
+    return AuthResult(
+      usuario: usuario,
+      userType: userType,
+      accessToken: '',
+      refreshToken: '',
+    );
   }
 
-  /// POST /auth/logout/  → invalida el refresh token
+  /// POST /auth/logout/
   static Future<void> logout() async {
     try {
       final refresh = await StorageService.getRefreshToken();
@@ -65,30 +91,38 @@ class AuthService {
         await ApiClient.post('/auth/logout/', {'refresh': refresh});
       }
     } catch (_) {
-      // Si el token ya expiró o hay red caída, igual limpiamos local
     } finally {
       await StorageService.clear();
     }
   }
 
-  // ── Helpers internos ──────────────────────────────────────────
+  // ── Helper interno ────────────────────────────────────────────
   static Future<AuthResult> _processAuthResponse(dynamic data) async {
-    final propietario = PropietarioModel.fromJson(
-      data['propietario'] as Map<String, dynamic>,
-    );
-    final access  = data['tokens']['access']  as String;
+    final userType = data['user_type'] as String? ?? 'propietario';
+    final userData = data['usuario'] as Map<String, dynamic>;
+    final access = data['tokens']['access'] as String;
     final refresh = data['tokens']['refresh'] as String;
+
+    dynamic usuario;
+    if (userType == 'admin') {
+      usuario = AdminModel.fromJson(userData);
+    } else {
+      usuario = PropietarioModel.fromJson(userData);
+    }
 
     await StorageService.saveTokens(access: access, refresh: refresh);
     await StorageService.saveUser(
-      id:     propietario.id,
-      rol:    propietario.rol,
-      nombre: propietario.nombreCompleto,
+      id: userData['id'] as int,
+      rol: userType,
+      nombre: userType == 'admin'
+          ? (usuario as AdminModel).nombreCompleto
+          : (usuario as PropietarioModel).nombreCompleto,
     );
 
     return AuthResult(
-      propietario:  propietario,
-      accessToken:  access,
+      usuario: usuario,
+      userType: userType,
+      accessToken: access,
       refreshToken: refresh,
     );
   }
@@ -100,7 +134,7 @@ class AuthService {
   }) async {
     await ApiClient.post('/auth/cambio-password/', {
       'password_actual': passwordActual,
-      'password_nuevo':  passwordNuevo,
+      'password_nuevo': passwordNuevo,
     });
   }
 }

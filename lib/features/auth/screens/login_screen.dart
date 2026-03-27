@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/api_client.dart';
+import '../../../core/models/propietario_model.dart';
+import '../../../core/models/admin_model.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -62,14 +64,14 @@ void _onSubmit() async {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('¡Bienvenido ${result.propietario.nombre}!'),
+        content: Text('¡Bienvenido ${result.nombre}!'),
         backgroundColor: const Color(0xFF1695A3),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
 
-    if (result.propietario.esAdmin) {
+    if (result.esAdmin) {
       Navigator.pushReplacementNamed(context, '/admin');
     } else {
       Navigator.pushReplacementNamed(context, '/inicio-usuario');

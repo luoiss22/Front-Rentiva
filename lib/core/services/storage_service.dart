@@ -5,7 +5,7 @@ class StorageService {
   static const _keyAccess     = 'access_token';
   static const _keyRefresh    = 'refresh_token';
   static const _keyUserId     = 'user_id';
-  static const _keyUserRol    = 'user_rol';
+  static const _keyUserRol    = 'user_type';
   static const _keyUserNombre = 'user_nombre';
 
   static Future<void> saveTokens({

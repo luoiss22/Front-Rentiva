@@ -20,15 +20,16 @@ class ApiClient {
   // Android emulator → 10.0.2.2  |  iOS sim / Web → localhost
   // -----------------------------------------------------------
   static const String baseUrl = 'http://localhost:8000/api/v1';
-  // static const String baseUrl = 'http://10.0.2.2:8000/api/v1'; // Android emulator
+  // static const String baseUrl = 'http://10.0.2.2:8000/api/v1';
+
+  /// Bandera para evitar loops infinitos de refresh
+  static bool _isRefreshing = false;
 
   // ── Headers ─────────────────────────────────────────────────
   static Future<Map<String, String>> _headers({bool auth = true}) async {
     final h = <String, String>{'Content-Type': 'application/json'};
     if (auth) {
       final token = await StorageService.getAccessToken();
-      // ignore: avoid_print
-      print('[ApiClient] token: ${token == null ? "NULL" : token.substring(0, 20) + "..."}');
       if (token != null) h['Authorization'] = 'Bearer $token';
     }
     return h;
@@ -36,15 +37,10 @@ class ApiClient {
 
   // ── Parsear respuesta ────────────────────────────────────────
   static dynamic _parse(http.Response response) {
-    // ignore: avoid_print
-    print('[ApiClient] ${response.request?.method} ${response.request?.url} → ${response.statusCode}');
-    // ignore: avoid_print
-    print('[ApiClient] body: ${response.body.substring(0, response.body.length.clamp(0, 300))}');
     final body = utf8.decode(response.bodyBytes);
     final data = jsonDecode(body);
     if (response.statusCode >= 200 && response.statusCode < 300) return data;
 
-    // Construir mensaje de error desde DRF
     String msg = 'Error desconocido';
     if (data is Map) {
       if (data.containsKey('detail')) {
@@ -59,14 +55,15 @@ class ApiClient {
     throw ApiException(response.statusCode, msg);
   }
 
-
-  // ── Métodos HTTP ─────────────────────────────────────────────
+  // ── Métodos HTTP con retry automático en 401 ─────────────────
   static Future<dynamic> get(String path, {bool auth = true}) async {
-    final res = await http.get(
-      Uri.parse('$baseUrl$path'),
-      headers: await _headers(auth: auth),
-    );
-    return _parse(res);
+    return _withRetry(() async {
+      final res = await http.get(
+        Uri.parse('$baseUrl$path'),
+        headers: await _headers(auth: auth),
+      );
+      return res;
+    }, auth: auth);
   }
 
   static Future<dynamic> post(
@@ -74,12 +71,14 @@ class ApiClient {
     Map<String, dynamic> body, {
     bool auth = true,
   }) async {
-    final res = await http.post(
-      Uri.parse('$baseUrl$path'),
-      headers: await _headers(auth: auth),
-      body: jsonEncode(body),
-    );
-    return _parse(res);
+    return _withRetry(() async {
+      final res = await http.post(
+        Uri.parse('$baseUrl$path'),
+        headers: await _headers(auth: auth),
+        body: jsonEncode(body),
+      );
+      return res;
+    }, auth: auth);
   }
 
   static Future<dynamic> patch(
@@ -87,20 +86,43 @@ class ApiClient {
     Map<String, dynamic> body, {
     bool auth = true,
   }) async {
-    final res = await http.patch(
-      Uri.parse('$baseUrl$path'),
-      headers: await _headers(auth: auth),
-      body: jsonEncode(body),
-    );
-    return _parse(res);
+    return _withRetry(() async {
+      final res = await http.patch(
+        Uri.parse('$baseUrl$path'),
+        headers: await _headers(auth: auth),
+        body: jsonEncode(body),
+      );
+      return res;
+    }, auth: auth);
   }
 
   static Future<dynamic> delete(String path, {bool auth = true}) async {
-    final res = await http.delete(
-      Uri.parse('$baseUrl$path'),
-      headers: await _headers(auth: auth),
-    );
-    return _parse(res);
+    return _withRetry(() async {
+      final res = await http.delete(
+        Uri.parse('$baseUrl$path'),
+        headers: await _headers(auth: auth),
+      );
+      return res;
+    }, auth: auth);
+  }
+
+  /// Ejecuta el request. Si recibe 401 y auth=true, intenta refresh y reintenta una vez.
+  static Future<dynamic> _withRetry(
+    Future<http.Response> Function() request, {
+    bool auth = true,
+  }) async {
+    final response = await request();
+
+    if (response.statusCode == 401 && auth && !_isRefreshing) {
+      final refreshed = await refreshToken();
+      if (refreshed) {
+        // Reintentar con el nuevo token
+        final retryResponse = await request();
+        return _parse(retryResponse);
+      }
+    }
+
+    return _parse(response);
   }
 
   // ── Multipart (subida de archivos) ───────────────────────────
@@ -124,9 +146,7 @@ class ApiClient {
 
     if (file != null) {
       final ext = file.path.split('.').last.toLowerCase();
-      final mime = ext == 'png'
-          ? MediaType('image', 'png')
-          : MediaType('image', 'jpeg');
+      final mime = _mimeFromExt(ext);
       request.files.add(
         await http.MultipartFile.fromPath(fileField, file.path, contentType: mime),
       );
@@ -137,11 +157,27 @@ class ApiClient {
     return _parse(res);
   }
 
+  static MediaType _mimeFromExt(String ext) {
+    switch (ext) {
+      case 'png':  return MediaType('image', 'png');
+      case 'gif':  return MediaType('image', 'gif');
+      case 'webp': return MediaType('image', 'webp');
+      case 'pdf':  return MediaType('application', 'pdf');
+      case 'doc':  return MediaType('application', 'msword');
+      case 'docx': return MediaType('application', 'vnd.openxmlformats-officedocument.wordprocessingml.document');
+      case 'xls':  return MediaType('application', 'vnd.ms-excel');
+      case 'xlsx': return MediaType('application', 'vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      default:     return MediaType('image', 'jpeg');
+    }
+  }
+
   // ── Refresh de token ─────────────────────────────────────────
   static Future<bool> refreshToken() async {
-    final refresh = await StorageService.getRefreshToken();
-    if (refresh == null) return false;
+    if (_isRefreshing) return false;
+    _isRefreshing = true;
     try {
+      final refresh = await StorageService.getRefreshToken();
+      if (refresh == null) return false;
       final res = await http.post(
         Uri.parse('$baseUrl/auth/token/refresh/'),
         headers: {'Content-Type': 'application/json'},
@@ -155,7 +191,11 @@ class ApiClient {
         );
         return true;
       }
-    } catch (_) {}
+    } catch (_) {
+      // Refresh falló, el usuario deberá loguearse de nuevo
+    } finally {
+      _isRefreshing = false;
+    }
     return false;
   }
 }

@@ -134,7 +134,9 @@ class _UserProfileModalState extends State<UserProfileModal> {
 
   Future<void> _cargarPerfil() async {
     try {
-      final data = await ApiClient.get('/auth/me/');
+      final rawData = await ApiClient.get('/auth/me/');
+      final data = rawData['usuario'] as Map<String, dynamic>? ?? rawData;
+      final userType = rawData['user_type'] as String? ?? 'propietario';
       if (mounted) setState(() => _userId = data['id']);
       final nombre    = data['nombre']    ?? '';
       final apellidos = data['apellidos'] ?? '';
@@ -149,7 +151,7 @@ class _UserProfileModalState extends State<UserProfileModal> {
           'telefono':     data['telefono']  ?? '',
           'email':        data['email']     ?? '',
           'claveElector': data['folio_ine'] ?? '',
-          'cargo':        data['rol']       ?? 'propietario',
+          'cargo':        userType,
         };
         _loadingProfile = false;
       });
@@ -206,7 +208,7 @@ class _UserProfileModalState extends State<UserProfileModal> {
         setState(() {
           _userData['nombre']    = parts.isNotEmpty ? parts.first : '';
           _userData['apellidos'] = parts.length > 1 ? parts.skip(1).join(' ') : '';
-          _userData['cargo']     = user['rol'] ?? '';
+          _userData['cargo']     = user['rol'] ?? 'propietario';
           _loadingProfile = false;
         });
       } else if (mounted) {
@@ -459,8 +461,11 @@ class _UserProfileModalState extends State<UserProfileModal> {
     );
   }
 
-  String get _initials =>
-      '${_userData['nombre']![0]}${_userData['apellidos']![0]}';
+  String get _initials {
+    final n = _userData['nombre'] ?? '';
+    final a = _userData['apellidos'] ?? '';
+    return '${n.isNotEmpty ? n[0] : '?'}${a.isNotEmpty ? a[0] : '?'}';
+  }
 
   @override
   Widget build(BuildContext context) {

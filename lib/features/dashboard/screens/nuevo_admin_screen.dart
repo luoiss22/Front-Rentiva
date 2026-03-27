@@ -30,7 +30,6 @@ class _NuevoAdminScreenState extends State<NuevoAdminScreen> {
   final _passwordCtrl = TextEditingController();
   bool _obscure = true;
   DateTime? _fechaNacimiento;
-  String _rol = 'admin';
   String _estado = 'activo';
 
   @override
@@ -77,37 +76,28 @@ class _NuevoAdminScreenState extends State<NuevoAdminScreen> {
 
   void _onSubmit() async {
     if (_formKey.currentState!.validate()) {
-      final registroBody = {
+      final body = {
         'nombre': _nombreCtrl.text.trim(),
         'apellidos': _apellidosCtrl.text.trim(),
         'telefono': _telefonoCtrl.text.trim(),
         'email': _emailCtrl.text.trim(),
         'password': _passwordCtrl.text,
+        'folio_ine': _folioIneCtrl.text.trim().toUpperCase(),
       };
       if (_fechaNacimiento != null) {
-        registroBody['fecha_nacimiento'] = _fechaNacimiento!.toIso8601String().split('T').first;
+        body['fecha_nacimiento'] = _fechaNacimiento!.toIso8601String().split('T').first;
       }
 
       try {
-        // 1. Crear propietario via registro
-        final response = await ApiClient.post('/auth/registro/', registroBody, auth: false);
-        final propData = response['propietario'] as Map<String, dynamic>;
-        final newId = propData['id'] as int;
+        // Crear admin via endpoint dedicado
+        final response = await ApiClient.post('/admin/registro/', body);
+        final newId = response['id'] as int;
 
-        // 2. Asignar rol admin + estado + folio_ine via PATCH (requiere auth de admin)
-        await ApiClient.patch('/admin/propietarios/$newId/rol/', {'rol': _rol});
-        if (_estado != 'activo' || _folioIneCtrl.text.trim().isNotEmpty) {
-          final patchBody = <String, dynamic>{};
-          if (_estado != 'activo') patchBody['estado'] = _estado;
-          if (_folioIneCtrl.text.trim().isNotEmpty) {
-            patchBody['folio_ine'] = _folioIneCtrl.text.trim().toUpperCase();
-          }
-          if (patchBody.isNotEmpty) {
-            await ApiClient.patch('/propietarios/$newId/', patchBody);
-          }
+        // Si el estado no es activo, actualizarlo
+        if (_estado != 'activo') {
+          await ApiClient.patch('/administradores/$newId/', {'estado': _estado});
         }
 
-        // 3. Rearmar el Admin con datos actualizados
         final nuevo = Admin(
           id: newId,
           nombre: _nombreCtrl.text.trim(),
@@ -116,7 +106,6 @@ class _NuevoAdminScreenState extends State<NuevoAdminScreen> {
           telefono: _telefonoCtrl.text.trim(),
           email: _emailCtrl.text.trim(),
           folioIne: _folioIneCtrl.text.trim().toUpperCase(),
-          rol: _rol,
           estado: _estado,
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
@@ -205,16 +194,6 @@ class _NuevoAdminScreenState extends State<NuevoAdminScreen> {
               adminSectionTitle(Icons.lock_outline, 'Credenciales de Acceso'),
               const SizedBox(height: 14),
               _buildPasswordField(),
-              const SizedBox(height: 24),
-              adminSectionTitle(Icons.shield_outlined, 'Rol'),
-              const SizedBox(height: 14),
-              _buildSelector(
-                  _rol,
-                  ['admin', 'propietario'],
-                  ['Admin', 'Propietario'],
-                  [Icons.shield_outlined, Icons.home_outlined],
-                  [const Color(0xFF225378), const Color(0xFF1695A3)],
-                  (v) => setState(() => _rol = v)),
               const SizedBox(height: 24),
               adminSectionTitle(Icons.toggle_on_outlined, 'Estado'),
               const SizedBox(height: 14),

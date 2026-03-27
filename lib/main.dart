@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:provider/provider.dart';
+import 'package:rentiva/core/providers/auth_provider.dart';
 import 'package:rentiva/features/auth/screens/login_screen.dart';
 import 'package:rentiva/features/auth/screens/register_screen.dart';
 import 'package:rentiva/features/dashboard/screens/inicio_usuario_admin.dart';
@@ -30,7 +32,12 @@ import 'package:rentiva/features/propiedades/screens/nuevo_mobiliario_screen.dar
 import 'package:rentiva/features/propiedades/screens/propiedades_screen.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => AuthProvider()..inicializar(),
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -85,12 +92,12 @@ class MyApp extends StatelessWidget {
         '/inquilinos': (context) => const InquilinosScreen(),
         '/inquilinos/nuevo': (context) => const NuevoInquilinoScreen(),
         '/inquilinos/info': (context) {
-        final id = ModalRoute.of(context)!.settings.arguments as int?;
-        return InformacionInquilinoScreen(arrendatarioId: id);
+          final id = ModalRoute.of(context)!.settings.arguments as int?;
+          return InformacionInquilinoScreen(arrendatarioId: id);
         },
         '/inquilinos/editar': (context) {
-        final id = ModalRoute.of(context)!.settings.arguments as int?;
-        return EditarInquilinoScreen(arrendatarioId: id);
+          final id = ModalRoute.of(context)!.settings.arguments as int?;
+          return EditarInquilinoScreen(arrendatarioId: id);
         },
         '/pagos': (context) => const PagosScreen(),
         '/contratos': (context) => const ContratosScreen(),
@@ -102,8 +109,8 @@ class MyApp extends StatelessWidget {
         '/mantenimiento': (context) => const MantenimientoScreen(),
         '/mantenimiento/nuevo': (context) => const NuevoReporteScreen(),
         '/mantenimiento/editar': (context) {
-        final id = ModalRoute.of(context)!.settings.arguments as int?;
-        return EditarReporteScreen(reporteId: id);
+          final id = ModalRoute.of(context)!.settings.arguments as int?;
+          return EditarReporteScreen(reporteId: id);
         },
         '/documentos': (context) => const DocumentosScreen(),
         '/fiscal': (context) => const FiscalScreen(),

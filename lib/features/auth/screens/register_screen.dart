@@ -1,9 +1,8 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
 
 // Widgets reutilizables desde core/
+import '../../../core/services/api_client.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../../core/widgets/app_password_field.dart';
 import '../../../core/widgets/app_image_picker.dart';
@@ -105,7 +104,6 @@ class _RegisterScreenState extends State<RegisterScreen>
     setState(() => _isLoading = true);
 
     try {
-      // Convertir fecha de DD/MM/YYYY a YYYY-MM-DD para el backend
       String? fechaBackend;
       final fechaTexto = _birthDateController.text.trim();
       if (fechaTexto.isNotEmpty) {
@@ -124,42 +122,27 @@ class _RegisterScreenState extends State<RegisterScreen>
           'folio_ine': _INEController.text.trim(),
       };
 
-      final response = await http.post(
-        Uri.parse('http://localhost:8000/api/v1/auth/registro/'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(body),
-      );
+      await ApiClient.post('/auth/registro/', body, auth: false);
 
       if (!mounted) return;
-
-      if (response.statusCode == 201) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('¡Cuenta creada exitosamente!'),
-            backgroundColor: Color(0xFF1695A3),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        Navigator.pushNamed(context, '/home');
-      } else {
-        final data = jsonDecode(response.body);
-        String mensaje = 'Error al crear la cuenta';
-        if (data is Map) {
-          final errores = data.entries.map((e) {
-            final val = e.value;
-            return val is List ? val.first.toString() : val.toString();
-          }).join('\n');
-          if (errores.isNotEmpty) mensaje = errores;
-        }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(mensaje),
-            backgroundColor: Colors.redAccent,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('¡Cuenta creada exitosamente!'),
+          backgroundColor: Color(0xFF1695A3),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      Navigator.pushNamed(context, '/home');
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

@@ -7,7 +7,8 @@ import 'ficha_pago_pdf.dart';
 // ─── BOTTOM SHEET DETALLE PAGO ────────────────────────────────────────────────
 class DetallePagoSheet extends StatefulWidget {
   final Pago pago;
-  final VoidCallback? onMarcarRecibido;
+  // Ahora recibe el callback con método y referencia opcionales
+  final Future<void> Function(String? metodo, String? referencia)? onMarcarRecibido;
   const DetallePagoSheet({super.key, required this.pago, this.onMarcarRecibido});
 
   @override
@@ -15,8 +16,9 @@ class DetallePagoSheet extends StatefulWidget {
 }
 
 class _DetallePagoSheetState extends State<DetallePagoSheet> {
-  Factura? _facturaLocal;   // factura recién creada en esta sesión
+  Factura? _facturaLocal;
   bool _generando = false;
+  bool _marcando = false;
 
   Factura? get _factura => widget.pago.factura ?? _facturaLocal;
 
@@ -29,6 +31,127 @@ class _DetallePagoSheetState extends State<DetallePagoSheet> {
       backgroundColor: color,
       duration: Duration(seconds: segundos),
     ));
+  }
+
+  // ── Diálogo método de pago (opcional) ─────────────────────────────────────
+  Future<void> _mostrarDialogoRecibido() async {
+    String? metodoSeleccionado;
+    final referenciaCtrl = TextEditingController();
+
+    const metodos = <String, String>{
+      'transferencia': 'Transferencia',
+      'efectivo':      'Efectivo',
+      'deposito':      'Depósito bancario',
+      'tarjeta':       'Tarjeta',
+      'otro':          'Otro',
+    };
+
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Registrar pago recibido',
+              style: TextStyle(color: Color(0xFF225378), fontWeight: FontWeight.bold, fontSize: 15)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Método de pago (opcional)',
+                  style: TextStyle(color: Colors.grey, fontSize: 12)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: metodos.entries.map((e) {
+                  final sel = metodoSeleccionado == e.key;
+                  return GestureDetector(
+                    onTap: () => setModalState(() =>
+                        metodoSeleccionado = sel ? null : e.key),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 120),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: sel
+                            ? const Color(0xFF1695A3)
+                            : const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: sel ? const Color(0xFF1695A3) : Colors.grey.shade300,
+                        ),
+                      ),
+                      child: Text(e.value,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: sel ? Colors.white : Colors.grey.shade600,
+                          )),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: referenciaCtrl,
+                decoration: InputDecoration(
+                  labelText: 'Referencia (opcional)',
+                  labelStyle: const TextStyle(fontSize: 12, color: Colors.grey),
+                  prefixIcon: const Icon(Icons.tag, color: Color(0xFF1695A3), size: 18),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                  filled: true,
+                  fillColor: const Color(0xFFF8FAFC),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide(color: Colors.grey.shade200),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide(color: Colors.grey.shade200),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: Color(0xFF1695A3), width: 2),
+                  ),
+                ),
+                style: const TextStyle(fontSize: 13, color: Color(0xFF225378)),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF15803D),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                elevation: 0,
+              ),
+              child: const Text('Confirmar', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmar != true || !mounted) return;
+
+    setState(() => _marcando = true);
+    try {
+      await widget.onMarcarRecibido!(
+        metodoSeleccionado,
+        referenciaCtrl.text.trim().isEmpty ? null : referenciaCtrl.text.trim(),
+      );
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        _snack('Error al registrar pago: $e', Colors.red);
+        setState(() => _marcando = false);
+      }
+    }
   }
 
   // ── Lógica: generar factura ────────────────────────────────────────────────
@@ -256,12 +379,13 @@ class _DetallePagoSheetState extends State<DetallePagoSheet> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      widget.onMarcarRecibido!();
-                    },
-                    icon: const Icon(Icons.check_circle_outline, size: 18),
-                    label: const Text('Marcar como Recibido'),
+                    onPressed: _marcando ? null : _mostrarDialogoRecibido,
+                    icon: _marcando
+                        ? const SizedBox(width: 18, height: 18,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white))
+                        : const Icon(Icons.check_circle_outline, size: 18),
+                    label: Text(_marcando ? 'Registrando...' : 'Marcar como Recibido'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF15803D),
                       foregroundColor: Colors.white,

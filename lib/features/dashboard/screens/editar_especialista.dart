@@ -30,7 +30,6 @@ class _EditarEspecialistaScreenState
   late final TextEditingController _ciudadCtrl;
   late final TextEditingController _estadoGeoCtrl;
   late final TextEditingController _aniosExpCtrl;
-  late final TextEditingController _calificacionCtrl;
   late String _tipoSel;
   late bool _disponible;
 
@@ -45,8 +44,6 @@ class _EditarEspecialistaScreenState
     _estadoGeoCtrl = TextEditingController(text: e.estadoGeografico);
     _aniosExpCtrl =
         TextEditingController(text: e.aniosExperiencia.toString());
-    _calificacionCtrl =
-        TextEditingController(text: e.calificacion.toStringAsFixed(1));
     _tipoSel = tiposEspecialista.contains(e.especialidad)
         ? e.especialidad
         : tiposEspecialista.first;
@@ -61,7 +58,6 @@ class _EditarEspecialistaScreenState
     _ciudadCtrl.dispose();
     _estadoGeoCtrl.dispose();
     _aniosExpCtrl.dispose();
-    _calificacionCtrl.dispose();
     super.dispose();
   }
 
@@ -75,7 +71,6 @@ class _EditarEspecialistaScreenState
       'email': _emailCtrl.text.trim(),
       'ciudad': _ciudadCtrl.text.trim(),
       'estado_geografico': _estadoGeoCtrl.text.trim(),
-      'calificacion': _calificacionCtrl.text.trim(),
       'anios_experiencia': int.tryParse(_aniosExpCtrl.text.trim()) ?? 0,
       'disponible': _disponible,
     };
@@ -89,8 +84,6 @@ class _EditarEspecialistaScreenState
         email: _emailCtrl.text.trim(),
         ciudad: _ciudadCtrl.text.trim(),
         estadoGeografico: _estadoGeoCtrl.text.trim(),
-        calificacion: double.tryParse(_calificacionCtrl.text.trim()) ??
-            widget.especialista.calificacion,
         aniosExperiencia: int.tryParse(_aniosExpCtrl.text.trim()) ?? 0,
         disponible: _disponible,
       );
@@ -336,7 +329,7 @@ class _EditarEspecialistaScreenState
                 ),
                 const SizedBox(height: 14),
 
-                // ── Calificación + Años experiencia ─────────────────
+                // ── Calificación (read-only) + Años experiencia ────
                 Row(
                   children: [
                     Expanded(
@@ -344,34 +337,33 @@ class _EditarEspecialistaScreenState
                         crossAxisAlignment:
                             CrossAxisAlignment.start,
                         children: [
-                          adminFieldLabel('Calificación'),
+                          adminFieldLabel('Calificación (resenas)'),
                           const SizedBox(height: 5),
-                          TextFormField(
-                            controller: _calificacionCtrl,
-                            keyboardType:
-                                const TextInputType.numberWithOptions(
-                                    decimal: true),
-                            inputFormatters: [
-                              FilteringTextInputFormatter.allow(
-                                  RegExp(r'[\d.]')),
-                              LengthLimitingTextInputFormatter(3),
-                            ],
-                            validator: (v) {
-                              if (v!.trim().isEmpty) {
-                                return 'Requerido';
-                              }
-                              final n = double.tryParse(v.trim());
-                              if (n == null || n < 0 || n > 5) {
-                                return '0 – 5';
-                              }
-                              return null;
-                            },
-                            style: const TextStyle(
-                                fontSize: 13,
-                                color: Color(0xFF225378)),
-                            decoration: adminFieldDecoration(
-                                '4.8',
-                                Icons.star_outline),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 14),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                  color: Colors.grey.shade200),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.star,
+                                    color: Color(0xFFEB7F00),
+                                    size: 16),
+                                const SizedBox(width: 6),
+                                Text(
+                                  widget.especialista.calificacion
+                                      .toStringAsFixed(1),
+                                  style: const TextStyle(
+                                      fontSize: 13,
+                                      color: Color(0xFF225378),
+                                      fontWeight: FontWeight.w600),
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                       ),

@@ -1,5 +1,5 @@
-/// Modelo que refleja al Propietario del backend Django.
-class PropietarioModel {
+/// Modelo que refleja al Administrador del backend Django.
+class AdminModel {
   final int id;
   final String nombre;
   final String apellidos;
@@ -8,7 +8,7 @@ class PropietarioModel {
   final String estado;
   final String? foto;
 
-  const PropietarioModel({
+  const AdminModel({
     required this.id,
     required this.nombre,
     required this.apellidos,
@@ -18,8 +18,8 @@ class PropietarioModel {
     this.foto,
   });
 
-  factory PropietarioModel.fromJson(Map<String, dynamic> json) {
-    return PropietarioModel(
+  factory AdminModel.fromJson(Map<String, dynamic> json) {
+    return AdminModel(
       id:        json['id'] as int,
       nombre:    json['nombre']    ?? '',
       apellidos: json['apellidos'] ?? '',

@@ -3,7 +3,6 @@ class UsuarioAdmin {
   final int id;
   final String nombre;
   final String apellidos;
-  final String rol;       // admin | propietario
   final String estado;    // activo | inactivo | suspendido
   final String propiedad; // nombre de propiedad asignada (display)
   final String telefono;
@@ -17,7 +16,6 @@ class UsuarioAdmin {
     required this.id,
     required this.nombre,
     required this.apellidos,
-    required this.rol,
     required this.estado,
     required this.propiedad,
     required this.telefono,
@@ -31,13 +29,13 @@ class UsuarioAdmin {
   String get nombreCompleto => '$nombre $apellidos';
   String get inicial => nombre[0].toUpperCase();
   bool get activo => estado == 'activo';
+  String get rol => 'propietario'; // Siempre propietario
 
   factory UsuarioAdmin.fromJson(Map<String, dynamic> json) {
     return UsuarioAdmin(
       id: json['id'] as int,
       nombre: json['nombre'] ?? '',
       apellidos: json['apellidos'] ?? '',
-      rol: json['rol'] ?? 'propietario',
       estado: json['estado'] ?? 'activo',
       propiedad: '-',
       telefono: json['telefono'] ?? '',
@@ -124,7 +122,7 @@ class Especialista {
   }
 }
 
-// ─── MODELO Admin (Django model) ─────────────────────────────────────────────
+// ─── MODELO Admin (tabla administradores) ────────────────────────────────────
 class Admin {
   final int id;
   final String nombre;
@@ -134,7 +132,6 @@ class Admin {
   final String email;
   final String folioIne;
   final String? fotoUrl;
-  final String rol;    // admin | propietario
   final String estado; // activo | inactivo | suspendido
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -148,7 +145,6 @@ class Admin {
     required this.email,
     required this.folioIne,
     this.fotoUrl,
-    required this.rol,
     required this.estado,
     required this.createdAt,
     required this.updatedAt,
@@ -157,6 +153,7 @@ class Admin {
   String get nombreCompleto => '$nombre $apellidos';
   String get inicial => nombre[0].toUpperCase();
   bool get activo => estado == 'activo';
+  String get rol => 'admin'; // Siempre admin
 
   factory Admin.fromJson(Map<String, dynamic> json) {
     return Admin(
@@ -170,7 +167,6 @@ class Admin {
       email: json['email'] ?? '',
       folioIne: json['folio_ine'] ?? '',
       fotoUrl: json['foto'] as String?,
-      rol: json['rol'] ?? 'admin',
       estado: json['estado'] ?? 'activo',
       createdAt: DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
       updatedAt: DateTime.tryParse(json['updated_at'] ?? '') ?? DateTime.now(),
@@ -185,7 +181,6 @@ class Admin {
     String? email,
     String? folioIne,
     String? fotoUrl,
-    String? rol,
     String? estado,
   }) =>
       Admin(
@@ -197,7 +192,6 @@ class Admin {
         email: email ?? this.email,
         folioIne: folioIne ?? this.folioIne,
         fotoUrl: fotoUrl ?? this.fotoUrl,
-        rol: rol ?? this.rol,
         estado: estado ?? this.estado,
         createdAt: createdAt,
         updatedAt: DateTime.now(),

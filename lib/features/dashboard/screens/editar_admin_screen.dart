@@ -30,7 +30,7 @@ class _EditarAdminScreenState extends State<EditarAdminScreen> {
       _emailCtrl,
       _folioIneCtrl;
   DateTime? _fechaNacimiento;
-  String _rol = 'admin', _estado = 'activo';
+  String _estado = 'activo';
 
   @override
   void initState() {
@@ -42,7 +42,6 @@ class _EditarAdminScreenState extends State<EditarAdminScreen> {
     _emailCtrl = TextEditingController(text: a.email);
     _folioIneCtrl = TextEditingController(text: a.folioIne);
     _fechaNacimiento = a.fechaNacimiento;
-    _rol = a.rol;
     _estado = a.estado;
   }
 
@@ -108,11 +107,8 @@ class _EditarAdminScreenState extends State<EditarAdminScreen> {
       }
 
       try {
-        await ApiClient.patch('/propietarios/${widget.admin.id}/', body);
-        // Si cambio el rol, usar endpoint dedicado
-        if (_rol != widget.admin.rol) {
-          await ApiClient.patch('/admin/propietarios/${widget.admin.id}/rol/', {'rol': _rol});
-        }
+        await ApiClient.patch('/administradores/${widget.admin.id}/', body);
+
         final updated = widget.admin.copyWith(
           nombre: _nombreCtrl.text.trim(),
           apellidos: _apellidosCtrl.text.trim(),
@@ -120,7 +116,6 @@ class _EditarAdminScreenState extends State<EditarAdminScreen> {
           telefono: _telefonoCtrl.text.trim(),
           email: _emailCtrl.text.trim(),
           folioIne: _folioIneCtrl.text.trim().toUpperCase(),
-          rol: _rol,
           estado: _estado,
         );
         if (mounted) Navigator.pop(context, updated);
@@ -190,7 +185,7 @@ class _EditarAdminScreenState extends State<EditarAdminScreen> {
                     onPressed: () async {
                       Navigator.pop(ctx);
                       try {
-                        await ApiClient.delete('/propietarios/${widget.admin.id}/');
+                        await ApiClient.delete('/administradores/${widget.admin.id}/');
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                               content: Text('Administrador eliminado'),
@@ -314,10 +309,6 @@ class _EditarAdminScreenState extends State<EditarAdminScreen> {
                   extraValidator: (v) =>
                       v!.length < 18 ? 'Mínimo 18 caracteres' : null),
               const SizedBox(height: 24),
-              adminSectionTitle(Icons.shield_outlined, 'Rol'),
-              const SizedBox(height: 14),
-              _buildRolSelector(),
-              const SizedBox(height: 24),
               adminSectionTitle(Icons.toggle_on_outlined, 'Estado'),
               const SizedBox(height: 14),
               _buildEstadoSelector(),
@@ -435,51 +426,6 @@ class _EditarAdminScreenState extends State<EditarAdminScreen> {
                               fontSize: 13)),
                     ]))),
           ]);
-
-  Widget _buildRolSelector() {
-    final roles = [
-      {
-        'value': 'admin',
-        'label': 'Admin',
-        'icon': Icons.shield_outlined,
-        'color': const Color(0xFF225378)
-      },
-      {
-        'value': 'propietario',
-        'label': 'Propietario',
-        'icon': Icons.home_outlined,
-        'color': const Color(0xFF1695A3)
-      },
-    ];
-    return Row(
-        children: roles.map((r) {
-      final sel = _rol == r['value'];
-      final color = r['color'] as Color;
-      return Expanded(
-          child: GestureDetector(
-              onTap: () => setState(() => _rol = r['value'] as String),
-              child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  margin: const EdgeInsets.only(right: 10),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  decoration: BoxDecoration(
-                      color: sel ? color.withOpacity(0.1) : Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                          color: sel ? color : Colors.grey.shade200,
-                          width: sel ? 2 : 1)),
-                  child: Column(children: [
-                    Icon(r['icon'] as IconData,
-                        color: sel ? color : Colors.grey, size: 22),
-                    const SizedBox(height: 4),
-                    Text(r['label'] as String,
-                        style: TextStyle(
-                            color: sel ? color : Colors.grey,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12)),
-                  ]))));
-    }).toList());
-  }
 
   Widget _buildEstadoSelector() {
     final estados = [
