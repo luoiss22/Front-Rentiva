@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'storage_service.dart';
@@ -131,6 +132,8 @@ class ApiClient {
     String path, {
     Map<String, String>? fields,
     File? file,
+    Uint8List? webFileBytes,
+    String? webFileName,
     String fileField = 'foto',
     bool auth = true,
   }) async {
@@ -149,6 +152,18 @@ class ApiClient {
       final mime = _mimeFromExt(ext);
       request.files.add(
         await http.MultipartFile.fromPath(fileField, file.path, contentType: mime),
+      );
+    } else if (webFileBytes != null) {
+      final String filename = webFileName ?? 'imagen.jpg';
+      final ext = filename.split('.').last.toLowerCase();
+      final mime = _mimeFromExt(ext);
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          fileField,
+          webFileBytes,
+          filename: filename,
+          contentType: mime,
+        ),
       );
     }
 

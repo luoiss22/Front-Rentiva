@@ -103,6 +103,7 @@ class _NuevaPropiedadScreenState extends State<NuevaPropiedadScreen> {
           '/propiedades/',
           fields: body,
           file: _imageFile,
+          webFileBytes: _webImage,
           fileField: 'imagen',
         );
       } else {

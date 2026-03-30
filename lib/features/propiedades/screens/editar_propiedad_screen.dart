@@ -134,13 +134,14 @@ class _EditarPropiedadScreenState extends State<EditarPropiedadScreen> {
     };
 
     try {
-      if (_imagenCambiada && _imageFile != null) {
+      if (_imagenCambiada && (_imageFile != null || _webImage != null)) {
         // Subir con multipart para incluir la imagen nueva
         await ApiClient.multipart(
           'PATCH',
           '/propiedades/${widget.propiedadId}/',
           fields: fields,
           file: _imageFile,
+          webFileBytes: _webImage,
           fileField: 'imagen',
         );
       } else {
