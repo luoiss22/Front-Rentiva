@@ -36,6 +36,7 @@ class AuthProvider extends ChangeNotifier {
     } catch (_) {
       _usuario = null;
       _userType = 'propietario';
+      await StorageService.clear();
     } finally {
       _cargando = false;
       notifyListeners();

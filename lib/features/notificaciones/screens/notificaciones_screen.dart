@@ -27,19 +27,6 @@ class Notificacion {
     required this.createdAt,
     this.read = false,
   });
-
-  // TODO: usar cuando conectes Django → GET /api/notificaciones/
-  factory Notificacion.fromJson(Map<String, dynamic> json) {
-    return Notificacion(
-      id: json['id'],
-      tipo: NotifTipo.values.firstWhere((e) => e.name == json['tipo']),
-      titulo: json['titulo'],
-      mensaje: json['mensaje'],
-      fechaProgramada: DateTime.parse(json['fecha_programada']),
-      medio: NotifMedio.values.firstWhere((e) => e.name == json['medio']),
-      createdAt: DateTime.parse(json['created_at']),
-    );
-  }
 }
 
 // (datos mock eliminados — ahora se cargan desde el API)

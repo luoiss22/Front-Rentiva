@@ -40,61 +40,6 @@ extension PropiedadEstadoExt on PropiedadEstado {
   }
 }
 
-// ─── MODELO según backend Django ──────────────────────────────────────────────
-class Propiedad {
-  final int id;
-  final String nombre;
-  final String direccion;
-  final String ciudad;
-  final String estadoGeografico;
-  final String codigoPostal;
-  final PropiedadTipo tipo;
-  final String descripcion;
-  final double costoRenta;
-  final double? superficieM2;
-  final PropiedadEstado estado;
-  final String imagen;           // campo local para UI
-  final DateTime createdAt;
-  final DateTime updatedAt;
-
-  const Propiedad({
-    required this.id,
-    required this.nombre,
-    required this.direccion,
-    required this.ciudad,
-    required this.estadoGeografico,
-    required this.codigoPostal,
-    required this.tipo,
-    required this.descripcion,
-    required this.costoRenta,
-    this.superficieM2,
-    required this.estado,
-    required this.imagen,
-    required this.createdAt,
-    required this.updatedAt,
-  });
-
-  // TODO: usar cuando conectes Django → GET /api/propiedades/
-  factory Propiedad.fromJson(Map<String, dynamic> json) {
-    return Propiedad(
-      id:                json['id'],
-      nombre:            json['nombre'],
-      direccion:         json['direccion'],
-      ciudad:            json['ciudad'],
-      estadoGeografico:  json['estado_geografico'],
-      codigoPostal:      json['codigo_postal'],
-      tipo:              PropiedadTipo.values.firstWhere((e) => e.name == json['tipo']),
-      descripcion:       json['descripcion'],
-      costoRenta:        double.parse(json['costo_renta'].toString()),
-      superficieM2:      json['superficie_m2'] != null ? double.parse(json['superficie_m2'].toString()) : null,
-      estado:            PropiedadEstado.values.firstWhere((e) => e.name == json['estado']),
-      imagen:            json['imagen'] ?? '',
-      createdAt:         DateTime.parse(json['created_at']),
-      updatedAt:         DateTime.parse(json['updated_at']),
-    );
-  }
-}
-
 // ─── PANTALLA ─────────────────────────────────────────────────────────────────
 class PropiedadesScreen extends StatefulWidget {
   const PropiedadesScreen({super.key});

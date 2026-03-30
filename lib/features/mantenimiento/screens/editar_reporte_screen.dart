@@ -5,8 +5,6 @@ import '../../../core/widgets/app_header.dart';
 import '../../../data/services/mantenimiento_service.dart';
 import '../../../data/services/propiedades_service.dart';
 
-// (mock data eliminado — ahora se carga desde el API)
-
 // ─── PANTALLA ─────────────────────────────────────────────────────────────────
 class EditarReporteScreen extends StatefulWidget {
   final int? reporteId;

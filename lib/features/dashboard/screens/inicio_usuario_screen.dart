@@ -54,7 +54,8 @@ class _InicioUsuarioScreenState extends State<InicioUsuarioScreen> {
         (sum, p) => sum + (double.tryParse(p['monto'].toString()) ?? 0),
       );
 
-      final pagosRecientes = await ApiClient.get('/pagos/?ordering=-fecha&limit=3');
+      // El back ordena por fecha_limite desc y devuelve resultados paginados
+      final pagosRecientes = await ApiClient.get('/pagos/?ordering=-fecha_limite&page_size=3');
       final listaReciente = pagosRecientes is List
           ? pagosRecientes
           : (pagosRecientes['results'] ?? []);
@@ -364,8 +365,11 @@ class _RecentActivity extends StatelessWidget {
         else
           ...actividad.map((pago) {
             final monto = pago['monto']?.toString() ?? '0';
-            final concepto = pago['concepto'] ?? pago['descripcion'] ?? 'Pago';
-            final fecha = pago['fecha'] ?? '';
+            // El serializer devuelve: periodo, inquilino_nombre, fecha_pago, fecha_limite
+            final concepto = pago['inquilino_nombre'] != null && pago['inquilino_nombre'].toString().isNotEmpty
+                ? '${pago['inquilino_nombre']} — ${pago['periodo'] ?? ''}'
+                : (pago['periodo'] ?? 'Pago');
+            final fecha = pago['fecha_pago'] ?? pago['fecha_limite'] ?? '';
             return Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: Container(

@@ -31,6 +31,8 @@ import 'package:rentiva/features/propiedades/screens/nueva_propiedad_screen.dart
 import 'package:rentiva/features/propiedades/screens/nuevo_mobiliario_screen.dart';
 import 'package:rentiva/features/propiedades/screens/propiedades_screen.dart';
 
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 void main() {
   runApp(
     ChangeNotifierProvider(
@@ -47,6 +49,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Rentiva',
+      navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         fontFamily: 'Sans',
@@ -63,62 +66,101 @@ class MyApp extends StatelessWidget {
       ],
       locale: const Locale('es', 'ES'),
       initialRoute: '/',
-      routes: {
-        '/': (context) => const LandingScreen(),
-        '/tutorial': (context) => const TutorialScreen(),
-        '/admin': (context) => const AdminPanelScreen(),
-        '/login': (context) => const LoginScreen(),
-        '/register': (context) => const RegisterScreen(),
-        '/inicio-usuario': (context) => const InicioUsuarioScreen(),
-        '/notificaciones': (context) => const NotificacionesScreen(),
-        '/propiedades': (context) => const PropiedadesScreen(),
-        '/propiedades/nueva': (context) => const NuevaPropiedadScreen(),
-        '/propiedades/info': (context) {
-          final id = ModalRoute.of(context)!.settings.arguments as int?;
-          return InformacionPropiedadScreen(propiedadId: id);
-        },
-        '/mobiliario/nuevo': (context) {
-          final id = ModalRoute.of(context)!.settings.arguments as int?;
-          return NuevoMobiliarioScreen(propiedadId: id);
-        },
-        '/mobiliario/editar': (context) {
-          final id = ModalRoute.of(context)!.settings.arguments as int?;
-          return EditarMobiliarioScreen(propiedadMobiliarioId: id);
-        },
-        '/propiedades/editar': (context) {
-          final id = ModalRoute.of(context)!.settings.arguments as int?;
-          return EditarPropiedadScreen(propiedadId: id);
-        },
-        '/inquilinos': (context) => const InquilinosScreen(),
-        '/inquilinos/nuevo': (context) => const NuevoInquilinoScreen(),
-        '/inquilinos/info': (context) {
-          final id = ModalRoute.of(context)!.settings.arguments as int?;
-          return InformacionInquilinoScreen(arrendatarioId: id);
-        },
-        '/inquilinos/editar': (context) {
-          final id = ModalRoute.of(context)!.settings.arguments as int?;
-          return EditarInquilinoScreen(arrendatarioId: id);
-        },
-        '/pagos': (context) => const PagosScreen(),
-        '/contratos': (context) => const ContratosScreen(),
-        '/contratos/nuevo': (context) => const NuevoContratoScreen(),
-        '/contratos/detalle': (context) {
-          final id = ModalRoute.of(context)!.settings.arguments as int?;
-          return DetalleContratoScreen(contratoId: id);
-        },
-        '/mantenimiento': (context) => const MantenimientoScreen(),
-        '/mantenimiento/nuevo': (context) => const NuevoReporteScreen(),
-        '/mantenimiento/editar': (context) {
-          final id = ModalRoute.of(context)!.settings.arguments as int?;
-          return EditarReporteScreen(reporteId: id);
-        },
-        '/documentos': (context) => const DocumentosScreen(),
-        '/fiscal': (context) => const FiscalScreen(),
-        '/fiscal/nuevo': (context) => const NuevoFiscalScreen(),
-        '/fiscal/detalle': (context) {
-          final id = ModalRoute.of(context)!.settings.arguments as int?;
-          return DetalleFiscalScreen(fiscalId: id);
-        },
+      onGenerateRoute: (settings) {
+        // Rutas públicas — no requieren sesión
+        const publicRoutes = {'/', '/tutorial', '/login', '/register'};
+
+        if (!publicRoutes.contains(settings.name)) {
+          final auth = Provider.of<AuthProvider>(
+            navigatorKey.currentContext!,
+            listen: false,
+          );
+          if (!auth.estaAutenticado) {
+            return MaterialPageRoute(
+              builder: (_) => const LoginScreen(),
+              settings: const RouteSettings(name: '/login'),
+            );
+          }
+        }
+
+        switch (settings.name) {
+          case '/':
+            return MaterialPageRoute(builder: (_) => const LandingScreen());
+          case '/tutorial':
+            return MaterialPageRoute(builder: (_) => const TutorialScreen());
+          case '/admin':
+            return MaterialPageRoute(builder: (_) => const AdminPanelScreen());
+          case '/login':
+            return MaterialPageRoute(builder: (_) => const LoginScreen());
+          case '/register':
+            return MaterialPageRoute(builder: (_) => const RegisterScreen());
+          case '/inicio-usuario':
+            return MaterialPageRoute(builder: (_) => const InicioUsuarioScreen());
+          case '/notificaciones':
+            return MaterialPageRoute(builder: (_) => const NotificacionesScreen());
+          case '/propiedades':
+            return MaterialPageRoute(builder: (_) => const PropiedadesScreen());
+          case '/propiedades/nueva':
+            return MaterialPageRoute(builder: (_) => const NuevaPropiedadScreen());
+          case '/propiedades/info': {
+            final id = settings.arguments as int?;
+            return MaterialPageRoute(builder: (_) => InformacionPropiedadScreen(propiedadId: id));
+          }
+          case '/propiedades/editar': {
+            final id = settings.arguments as int?;
+            return MaterialPageRoute(builder: (_) => EditarPropiedadScreen(propiedadId: id));
+          }
+          case '/mobiliario/nuevo': {
+            final id = settings.arguments as int?;
+            return MaterialPageRoute(builder: (_) => NuevoMobiliarioScreen(propiedadId: id));
+          }
+          case '/mobiliario/editar': {
+            final id = settings.arguments as int?;
+            return MaterialPageRoute(builder: (_) => EditarMobiliarioScreen(propiedadMobiliarioId: id));
+          }
+          case '/inquilinos':
+            return MaterialPageRoute(builder: (_) => const InquilinosScreen());
+          case '/inquilinos/nuevo':
+            return MaterialPageRoute(builder: (_) => const NuevoInquilinoScreen());
+          case '/inquilinos/info': {
+            final id = settings.arguments as int?;
+            return MaterialPageRoute(builder: (_) => InformacionInquilinoScreen(arrendatarioId: id));
+          }
+          case '/inquilinos/editar': {
+            final id = settings.arguments as int?;
+            return MaterialPageRoute(builder: (_) => EditarInquilinoScreen(arrendatarioId: id));
+          }
+          case '/pagos':
+            return MaterialPageRoute(builder: (_) => const PagosScreen());
+          case '/contratos':
+            return MaterialPageRoute(builder: (_) => const ContratosScreen());
+          case '/contratos/nuevo':
+            return MaterialPageRoute(builder: (_) => const NuevoContratoScreen());
+          case '/contratos/detalle': {
+            final id = settings.arguments as int?;
+            return MaterialPageRoute(builder: (_) => DetalleContratoScreen(contratoId: id));
+          }
+          case '/mantenimiento':
+            return MaterialPageRoute(builder: (_) => const MantenimientoScreen());
+          case '/mantenimiento/nuevo':
+            return MaterialPageRoute(builder: (_) => const NuevoReporteScreen());
+          case '/mantenimiento/editar': {
+            final id = settings.arguments as int?;
+            return MaterialPageRoute(builder: (_) => EditarReporteScreen(reporteId: id));
+          }
+          case '/documentos':
+            return MaterialPageRoute(builder: (_) => const DocumentosScreen());
+          case '/fiscal':
+            return MaterialPageRoute(builder: (_) => const FiscalScreen());
+          case '/fiscal/nuevo':
+            return MaterialPageRoute(builder: (_) => const NuevoFiscalScreen());
+          case '/fiscal/detalle': {
+            final id = settings.arguments as int?;
+            return MaterialPageRoute(builder: (_) => DetalleFiscalScreen(fiscalId: id));
+          }
+          default:
+            return MaterialPageRoute(builder: (_) => const LandingScreen());
+        }
       },
     );
   }

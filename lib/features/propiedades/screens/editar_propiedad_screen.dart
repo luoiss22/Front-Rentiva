@@ -6,54 +6,6 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../../core/services/api_client.dart';
 import '../../../core/widgets/app_header.dart';
 
-// ─── DATOS EJEMPLO (reemplazar con GET /api/propiedades/{id}/) ────────────────
-class _PropiedadEditData {
-  final int id;
-  final String nombre;
-  final String direccion;
-  final String ciudad;
-  final String estadoGeografico;
-  final String codigoPostal;
-  final String tipo;
-  final String estado;
-  final double costoRenta;
-  final double? superficieM2;
-  final String descripcion;
-  final String? imagenUrl;
-
-  const _PropiedadEditData({
-    required this.id,
-    required this.nombre,
-    required this.direccion,
-    required this.ciudad,
-    required this.estadoGeografico,
-    required this.codigoPostal,
-    required this.tipo,
-    required this.estado,
-    required this.costoRenta,
-    this.superficieM2,
-    required this.descripcion,
-    this.imagenUrl,
-  });
-}
-
-final _mockPropiedad = _PropiedadEditData(
-  id: 1,
-  nombre: 'Apartamento Moderno Centro',
-  direccion: 'Av. Reforma 222',
-  ciudad: 'Ciudad de México',
-  estadoGeografico: 'CDMX',
-  codigoPostal: '06600',
-  tipo: 'departamento',
-  estado: 'rentada',
-  costoRenta: 12500,
-  superficieM2: 85,
-  descripcion:
-      'Hermoso apartamento recién remodelado con vista a la ciudad. Cuenta con acabados de lujo, cocina integral y seguridad 24/7.',
-  imagenUrl:
-      'https://images.unsplash.com/photo-1594873604892-b599f847e859?w=800',
-);
-
 // ─── PANTALLA ─────────────────────────────────────────────────────────────────
 class EditarPropiedadScreen extends StatefulWidget {
   final int? propiedadId;
@@ -72,21 +24,20 @@ class _EditarPropiedadScreenState extends State<EditarPropiedadScreen> {
   File? _imageFile;
   Uint8List? _webImage;
   bool _imagenCambiada = false;
+  String? _imagenUrlActual; // URL de la imagen existente en el servidor
 
-  // Controladores
-  late TextEditingController _nombreCtrl;
-  late TextEditingController _direccionCtrl;
-  late TextEditingController _ciudadCtrl;
-  late TextEditingController _estadoGeoCtrl;
-  late TextEditingController _cpCtrl;
-  late TextEditingController _costoRentaCtrl;
-  late TextEditingController _superficieCtrl;
-  late TextEditingController _descripcionCtrl;
+  // Controladores — inicializados vacíos para evitar LateInitializationError
+  final _nombreCtrl      = TextEditingController();
+  final _direccionCtrl   = TextEditingController();
+  final _ciudadCtrl      = TextEditingController();
+  final _estadoGeoCtrl   = TextEditingController();
+  final _cpCtrl          = TextEditingController();
+  final _costoRentaCtrl  = TextEditingController();
+  final _superficieCtrl  = TextEditingController();
+  final _descripcionCtrl = TextEditingController();
 
-  late String _tipo;
-  late String _estado;
-
-  _PropiedadEditData? _propiedad;
+  String _tipo   = 'otro';
+  String _estado = 'disponible';
 
   final List<Map<String, String>> _tiposOpciones = [
     {'value': 'casa',         'label': 'Casa'},
@@ -115,45 +66,30 @@ class _EditarPropiedadScreenState extends State<EditarPropiedadScreen> {
 
   Future<void> _cargarPropiedad() async {
     if (widget.propiedadId == null) {
-      setState(() => _loadingData = false);
+      setState(() { _loadError = 'ID de propiedad no proporcionado'; _loadingData = false; });
       return;
     }
     try {
       final data = await ApiClient.get('/propiedades/${widget.propiedadId}/');
-      _propiedad = _PropiedadEditData(
-        id:               data['id'],
-        nombre:           data['nombre'] ?? '',
-        direccion:        data['direccion'] ?? '',
-        ciudad:           data['ciudad'] ?? '',
-        estadoGeografico: data['estado_geografico'] ?? '',
-        codigoPostal:     data['codigo_postal'] ?? '',
-        tipo:             data['tipo'] ?? 'otro',
-        estado:           data['estado'] ?? 'disponible',
-        costoRenta:       double.tryParse(data['costo_renta'].toString()) ?? 0,
-        superficieM2:     data['superficie_m2'] != null ? double.tryParse(data['superficie_m2'].toString()) : null,
-        descripcion:      data['descripcion'] ?? '',
-        imagenUrl:        data['imagen'],
-      );
-      _initControllers();
-      setState(() => _loadingData = false);
+      _nombreCtrl.text      = data['nombre'] ?? '';
+      _direccionCtrl.text   = data['direccion'] ?? '';
+      _ciudadCtrl.text      = data['ciudad'] ?? '';
+      _estadoGeoCtrl.text   = data['estado_geografico'] ?? '';
+      _cpCtrl.text          = data['codigo_postal'] ?? '';
+      _costoRentaCtrl.text  = (double.tryParse(data['costo_renta'].toString()) ?? 0).toStringAsFixed(2);
+      _superficieCtrl.text  = data['superficie_m2'] != null
+          ? (double.tryParse(data['superficie_m2'].toString()) ?? 0).toStringAsFixed(2)
+          : '';
+      _descripcionCtrl.text = data['descripcion'] ?? '';
+      setState(() {
+        _tipo              = data['tipo'] ?? 'otro';
+        _estado            = data['estado'] ?? 'disponible';
+        _imagenUrlActual   = data['imagen'] as String?;
+        _loadingData       = false;
+      });
     } catch (e) {
       setState(() { _loadError = 'No se pudo cargar la propiedad'; _loadingData = false; });
     }
-  }
-
-  void _initControllers() {
-    final p = _propiedad!;
-    _nombreCtrl       = TextEditingController(text: p.nombre);
-    _direccionCtrl    = TextEditingController(text: p.direccion);
-    _ciudadCtrl       = TextEditingController(text: p.ciudad);
-    _estadoGeoCtrl    = TextEditingController(text: p.estadoGeografico);
-    _cpCtrl           = TextEditingController(text: p.codigoPostal);
-    _costoRentaCtrl   = TextEditingController(text: p.costoRenta.toStringAsFixed(2));
-    _superficieCtrl   = TextEditingController(
-        text: p.superficieM2?.toStringAsFixed(2) ?? '');
-    _descripcionCtrl  = TextEditingController(text: p.descripcion);
-    _tipo   = p.tipo;
-    _estado = p.estado;
   }
 
   @override
@@ -183,7 +119,8 @@ class _EditarPropiedadScreenState extends State<EditarPropiedadScreen> {
 
   void _onSubmit() async {
     if (!_formKey.currentState!.validate()) return;
-    final data = {
+
+    final fields = {
       'nombre':            _nombreCtrl.text,
       'direccion':         _direccionCtrl.text,
       'ciudad':            _ciudadCtrl.text,
@@ -191,16 +128,32 @@ class _EditarPropiedadScreenState extends State<EditarPropiedadScreen> {
       'codigo_postal':     _cpCtrl.text,
       'tipo':              _tipo,
       'costo_renta':       _costoRentaCtrl.text,
-      'superficie_m2':     _superficieCtrl.text.isNotEmpty ? _superficieCtrl.text : null,
       'descripcion':       _descripcionCtrl.text,
       'estado':            _estado,
+      if (_superficieCtrl.text.isNotEmpty) 'superficie_m2': _superficieCtrl.text,
     };
+
     try {
-      await ApiClient.patch('/propiedades/${widget.propiedadId}/', data);
+      if (_imagenCambiada && _imageFile != null) {
+        // Subir con multipart para incluir la imagen nueva
+        await ApiClient.multipart(
+          'PATCH',
+          '/propiedades/${widget.propiedadId}/',
+          fields: fields,
+          file: _imageFile,
+          fileField: 'imagen',
+        );
+      } else {
+        // Solo texto — patch normal
+        await ApiClient.patch('/propiedades/${widget.propiedadId}/', fields);
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Propiedad actualizada correctamente'),
-            backgroundColor: Color(0xFF1695A3), behavior: SnackBarBehavior.floating),
+        const SnackBar(
+          content: Text('Propiedad actualizada correctamente'),
+          backgroundColor: Color(0xFF1695A3),
+          behavior: SnackBarBehavior.floating,
+        ),
       );
       Navigator.pop(context);
     } on ApiException catch (e) {
@@ -506,7 +459,7 @@ class _EditarPropiedadScreenState extends State<EditarPropiedadScreen> {
   // ── IMAGE PICKER ──────────────────────────────────────────────────────────
   Widget _buildImagePicker() {
     final hasNewImage = _webImage != null || _imageFile != null;
-    final hasExistingImage = !_imagenCambiada && _propiedad?.imagenUrl != null;
+    final hasExistingImage = !_imagenCambiada && _imagenUrlActual != null;
 
     return GestureDetector(
       onTap: _pickImage,
@@ -535,7 +488,7 @@ class _EditarPropiedadScreenState extends State<EditarPropiedadScreen> {
               ClipRRect(
                 borderRadius: BorderRadius.circular(15),
                 child: Image.network(
-                  _propiedad!.imagenUrl!,
+                  _imagenUrlActual!,
                   fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) => _imagePlaceholder(),
                 ),
