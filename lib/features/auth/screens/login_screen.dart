@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../../core/services/auth_service.dart';
+import 'package:provider/provider.dart';
+import '../../../core/providers/auth_provider.dart';
 import '../../../core/services/api_client.dart';
 import '../../../core/models/propietario_model.dart';
 import '../../../core/models/admin_model.dart';
@@ -55,7 +56,8 @@ void _onSubmit() async {
   setState(() => _isLoading = true);
 
   try {
-    final result = await AuthService.login(
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final result = await auth.login(
       email: _emailController.text.trim(),
       password: _passwordController.text.trim(),
     );

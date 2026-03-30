@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 
 // Widgets reutilizables desde core/
+import '../../../core/providers/auth_provider.dart';
 import '../../../core/services/api_client.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../../core/widgets/app_password_field.dart';
@@ -111,18 +113,14 @@ class _RegisterScreenState extends State<RegisterScreen>
         fechaBackend = '${partes[2]}-${partes[1]}-${partes[0]}';
       }
 
-      final body = {
-        'nombre': _nameController.text.trim(),
-        'apellidos': _lastNameController.text.trim(),
-        'email': _emailController.text.trim(),
-        'telefono': _phoneController.text.trim(),
-        'password': _passwordController.text,
-        if (fechaBackend != null) 'fecha_nacimiento': fechaBackend,
-        if (_INEController.text.isNotEmpty)
-          'folio_ine': _INEController.text.trim(),
-      };
-
-      await ApiClient.post('/auth/registro/', body, auth: false);
+      final auth = Provider.of<AuthProvider>(context, listen: false);
+      await auth.register(
+        nombre: _nameController.text.trim(),
+        apellidos: _lastNameController.text.trim(),
+        email: _emailController.text.trim(),
+        telefono: _phoneController.text.trim(),
+        password: _passwordController.text,
+      );
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -132,7 +130,7 @@ class _RegisterScreenState extends State<RegisterScreen>
           behavior: SnackBarBehavior.floating,
         ),
       );
-      Navigator.pushNamed(context, '/home');
+      Navigator.pushReplacementNamed(context, '/inicio-usuario');
     } on ApiException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
