@@ -91,7 +91,10 @@ class _PropiedadesScreenState extends State<PropiedadesScreen> {
 
       // ── Botón flotante ─────────────────────────────────────────────────────
       floatingActionButton: FloatingActionButton(
-        onPressed: () => Navigator.pushNamed(context, '/propiedades/nueva'),
+        onPressed: () async {
+          await Navigator.pushNamed(context, '/propiedades/nueva');
+          _recargar();
+        },
         backgroundColor: const Color(0xFFEB7F00),
         elevation: 4,
         child: const Icon(Icons.add, color: Colors.white, size: 28),
@@ -196,11 +199,14 @@ class _PropiedadesScreenState extends State<PropiedadesScreen> {
                   itemCount: lista.length,
                   itemBuilder: (context, index) => _PropiedadCard(
                     propiedad: lista[index],
-                    onTap: () => Navigator.pushNamed(
-                      context,
-                      '/propiedades/info',
-                      arguments: lista[index].id,
-                    ),
+                    onTap: () async {
+                      await Navigator.pushNamed(
+                        context,
+                        '/propiedades/info',
+                        arguments: lista[index].id,
+                      );
+                      _recargar();
+                    },
                   ),
                 );
               },
@@ -293,7 +299,7 @@ class _PropiedadCard extends StatelessWidget {
                   children: [
                     // Imagen con fallback
                     Image.network(
-                      propiedad.fotoPrincipal ?? '',
+                      '${propiedad.fotoPrincipal ?? ''}?t=${DateTime.now().millisecondsSinceEpoch}',
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => Container(
                         color: const Color(0xFFACF0F2).withOpacity(0.3),
