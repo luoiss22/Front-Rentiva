@@ -75,6 +75,32 @@ class MyApp extends StatelessWidget {
             navigatorKey.currentContext!,
             listen: false,
           );
+          // Si todavía está inicializando, esperar antes de decidir
+          if (auth.cargando) {
+            return MaterialPageRoute(
+              builder: (_) => Consumer<AuthProvider>(
+                builder: (context, auth, _) {
+                  if (auth.cargando) {
+                    return const Scaffold(
+                      body: Center(
+                        child: CircularProgressIndicator(color: Color(0xFF1695A3)),
+                      ),
+                    );
+                  }
+                  if (!auth.estaAutenticado) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      Navigator.of(context).pushReplacementNamed('/login');
+                    });
+                    return const Scaffold(body: SizedBox());
+                  }
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    Navigator.of(context).pushReplacementNamed(settings.name ?? '/');
+                  });
+                  return const Scaffold(body: SizedBox());
+                },
+              ),
+            );
+          }
           if (!auth.estaAutenticado) {
             return MaterialPageRoute(
               builder: (_) => const LoginScreen(),

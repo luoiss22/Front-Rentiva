@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../models/propietario_model.dart';
 import '../models/admin_model.dart';
+import '../services/api_client.dart';
 import '../services/auth_service.dart';
 import '../services/storage_service.dart';
 
@@ -28,10 +29,31 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
     try {
       final loggedIn = await StorageService.isLoggedIn();
-      if (loggedIn) {
+      if (!loggedIn) {
+        _cargando = false;
+        notifyListeners();
+        return;
+      }
+      // Intento 1: con el access token actual
+      try {
         final result = await AuthService.me();
         _usuario = result.usuario;
         _userType = result.userType;
+        return;
+      } catch (_) {
+        // Access token vencido — intentar refresh antes de rendirse
+      }
+      // Intento 2: refrescar el token y reintentar
+      final refreshed = await ApiClient.refreshToken();
+      if (refreshed) {
+        final result = await AuthService.me();
+        _usuario = result.usuario;
+        _userType = result.userType;
+      } else {
+        // Refresh también falló — sesión inválida, limpiar
+        _usuario = null;
+        _userType = 'propietario';
+        await StorageService.clear();
       }
     } catch (_) {
       _usuario = null;
