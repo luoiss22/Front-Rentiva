@@ -315,6 +315,17 @@ class _InformacionPropiedadScreenState
                   key: ValueKey(_cacheBuster),
                   propiedad: propiedad,
                   cacheBuster: _cacheBuster,
+                  onEditPressed: () async {
+                    await Navigator.pushNamed(
+                      context, '/propiedades/editar',
+                      arguments: propiedad.id,
+                    );
+                    if (context.mounted) {
+                      PaintingBinding.instance.imageCache.clear();
+                      setState(() { _loading = true; _error = null; });
+                      _cargarPropiedad();
+                    }
+                  },
                 ),
                 Padding(
                   padding:
@@ -370,7 +381,8 @@ class _InformacionPropiedadScreenState
 class _HeroImage extends StatelessWidget {
   final PropiedadDetalle propiedad;
   final int cacheBuster;
-  const _HeroImage({required this.propiedad, required this.cacheBuster});
+  final VoidCallback onEditPressed;
+  const _HeroImage({super.key, required this.propiedad, required this.cacheBuster, required this.onEditPressed});
 
   @override
   Widget build(BuildContext context) {
@@ -426,19 +438,7 @@ class _HeroImage extends StatelessWidget {
             top: 12,
             right: 12,
             child: GestureDetector(
-              onTap: () async {
-                await Navigator.pushNamed(
-                  context, '/propiedades/editar',
-                  arguments: propiedad.id,
-                );
-                if (context.mounted) {
-                  // Limpiar cache de imágenes de Flutter para forzar recarga
-                  PaintingBinding.instance.imageCache.clear();
-                  PaintingBinding.instance.imageCache.clearLive();
-                  setState(() { _loading = true; _error = null; });
-                  _cargarPropiedad();
-                }
-              },
+              onTap: onEditPressed,
               child: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(

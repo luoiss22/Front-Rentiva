@@ -206,7 +206,6 @@ class _PropiedadesScreenState extends State<PropiedadesScreen> {
                         arguments: lista[index].id,
                       );
                       PaintingBinding.instance.imageCache.clear();
-                      PaintingBinding.instance.imageCache.clearLive();
                       _recargar();
                     },
                   ),
