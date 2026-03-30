@@ -51,143 +51,126 @@ class MyApp extends StatelessWidget {
       title: 'Rentiva',
       navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        fontFamily: 'Sans',
-        useMaterial3: true,
-      ),
+      theme: ThemeData(fontFamily: 'Sans', useMaterial3: true),
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      supportedLocales: const [
-        Locale('es', 'ES'),
-        Locale('en', 'US'),
-      ],
+      supportedLocales: const [Locale('es', 'ES'), Locale('en', 'US')],
       locale: const Locale('es', 'ES'),
-      initialRoute: '/',
-      onGenerateRoute: (settings) {
-        // Rutas públicas — no requieren sesión
-        const publicRoutes = {'/', '/tutorial', '/login', '/register'};
+      home: const _AuthGate(),
+      onGenerateRoute: _generateRoute,
+    );
+  }
+}
 
-        if (!publicRoutes.contains(settings.name)) {
-          final auth = Provider.of<AuthProvider>(
-            navigatorKey.currentContext!,
-            listen: false,
+/// Widget raíz que espera a que termine inicializar() y decide qué mostrar.
+class _AuthGate extends StatelessWidget {
+  const _AuthGate();
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<AuthProvider>(
+      builder: (context, auth, _) {
+        // Todavía verificando tokens
+        if (auth.cargando) {
+          return const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(color: Color(0xFF1695A3)),
+            ),
           );
-          // Si todavía está inicializando, esperar antes de decidir
-          if (auth.cargando) {
-            return MaterialPageRoute(
-              builder: (_) => Consumer<AuthProvider>(
-                builder: (context, auth, _) {
-                  if (auth.cargando) {
-                    return const Scaffold(
-                      body: Center(
-                        child: CircularProgressIndicator(color: Color(0xFF1695A3)),
-                      ),
-                    );
-                  }
-                  if (!auth.estaAutenticado) {
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      Navigator.of(context).pushReplacementNamed('/login');
-                    });
-                    return const Scaffold(body: SizedBox());
-                  }
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    Navigator.of(context).pushReplacementNamed(settings.name ?? '/');
-                  });
-                  return const Scaffold(body: SizedBox());
-                },
-              ),
-            );
-          }
-          if (!auth.estaAutenticado) {
-            return MaterialPageRoute(
-              builder: (_) => const LoginScreen(),
-              settings: const RouteSettings(name: '/login'),
-            );
-          }
         }
-
-        switch (settings.name) {
-          case '/':
-            return MaterialPageRoute(builder: (_) => const LandingScreen());
-          case '/tutorial':
-            return MaterialPageRoute(builder: (_) => const TutorialScreen());
-          case '/admin':
-            return MaterialPageRoute(builder: (_) => const AdminPanelScreen());
-          case '/login':
-            return MaterialPageRoute(builder: (_) => const LoginScreen());
-          case '/register':
-            return MaterialPageRoute(builder: (_) => const RegisterScreen());
-          case '/inicio-usuario':
-            return MaterialPageRoute(builder: (_) => const InicioUsuarioScreen());
-          case '/notificaciones':
-            return MaterialPageRoute(builder: (_) => const NotificacionesScreen());
-          case '/propiedades':
-            return MaterialPageRoute(builder: (_) => const PropiedadesScreen());
-          case '/propiedades/nueva':
-            return MaterialPageRoute(builder: (_) => const NuevaPropiedadScreen());
-          case '/propiedades/info': {
-            final id = settings.arguments as int?;
-            return MaterialPageRoute(builder: (_) => InformacionPropiedadScreen(propiedadId: id));
-          }
-          case '/propiedades/editar': {
-            final id = settings.arguments as int?;
-            return MaterialPageRoute(builder: (_) => EditarPropiedadScreen(propiedadId: id));
-          }
-          case '/mobiliario/nuevo': {
-            final id = settings.arguments as int?;
-            return MaterialPageRoute(builder: (_) => NuevoMobiliarioScreen(propiedadId: id));
-          }
-          case '/mobiliario/editar': {
-            final id = settings.arguments as int?;
-            return MaterialPageRoute(builder: (_) => EditarMobiliarioScreen(propiedadMobiliarioId: id));
-          }
-          case '/inquilinos':
-            return MaterialPageRoute(builder: (_) => const InquilinosScreen());
-          case '/inquilinos/nuevo':
-            return MaterialPageRoute(builder: (_) => const NuevoInquilinoScreen());
-          case '/inquilinos/info': {
-            final id = settings.arguments as int?;
-            return MaterialPageRoute(builder: (_) => InformacionInquilinoScreen(arrendatarioId: id));
-          }
-          case '/inquilinos/editar': {
-            final id = settings.arguments as int?;
-            return MaterialPageRoute(builder: (_) => EditarInquilinoScreen(arrendatarioId: id));
-          }
-          case '/pagos':
-            return MaterialPageRoute(builder: (_) => const PagosScreen());
-          case '/contratos':
-            return MaterialPageRoute(builder: (_) => const ContratosScreen());
-          case '/contratos/nuevo':
-            return MaterialPageRoute(builder: (_) => const NuevoContratoScreen());
-          case '/contratos/detalle': {
-            final id = settings.arguments as int?;
-            return MaterialPageRoute(builder: (_) => DetalleContratoScreen(contratoId: id));
-          }
-          case '/mantenimiento':
-            return MaterialPageRoute(builder: (_) => const MantenimientoScreen());
-          case '/mantenimiento/nuevo':
-            return MaterialPageRoute(builder: (_) => const NuevoReporteScreen());
-          case '/mantenimiento/editar': {
-            final id = settings.arguments as int?;
-            return MaterialPageRoute(builder: (_) => EditarReporteScreen(reporteId: id));
-          }
-          case '/documentos':
-            return MaterialPageRoute(builder: (_) => const DocumentosScreen());
-          case '/fiscal':
-            return MaterialPageRoute(builder: (_) => const FiscalScreen());
-          case '/fiscal/nuevo':
-            return MaterialPageRoute(builder: (_) => const NuevoFiscalScreen());
-          case '/fiscal/detalle': {
-            final id = settings.arguments as int?;
-            return MaterialPageRoute(builder: (_) => DetalleFiscalScreen(fiscalId: id));
-          }
-          default:
-            return MaterialPageRoute(builder: (_) => const LandingScreen());
+        // Sesión activa — ir al dashboard
+        if (auth.estaAutenticado) {
+          return auth.esAdmin
+              ? const AdminPanelScreen()
+              : const InicioUsuarioScreen();
         }
+        // Sin sesión — mostrar landing
+        return const LandingScreen();
       },
     );
+  }
+}
+
+Route<dynamic>? _generateRoute(RouteSettings settings) {
+  switch (settings.name) {
+    case '/':
+      return MaterialPageRoute(builder: (_) => const LandingScreen());
+    case '/tutorial':
+      return MaterialPageRoute(builder: (_) => const TutorialScreen());
+    case '/admin':
+      return MaterialPageRoute(builder: (_) => const AdminPanelScreen());
+    case '/login':
+      return MaterialPageRoute(builder: (_) => const LoginScreen());
+    case '/register':
+      return MaterialPageRoute(builder: (_) => const RegisterScreen());
+    case '/inicio-usuario':
+      return MaterialPageRoute(builder: (_) => const InicioUsuarioScreen());
+    case '/notificaciones':
+      return MaterialPageRoute(builder: (_) => const NotificacionesScreen());
+    case '/propiedades':
+      return MaterialPageRoute(builder: (_) => const PropiedadesScreen());
+    case '/propiedades/nueva':
+      return MaterialPageRoute(builder: (_) => const NuevaPropiedadScreen());
+    case '/propiedades/info': {
+      final id = settings.arguments as int?;
+      return MaterialPageRoute(builder: (_) => InformacionPropiedadScreen(propiedadId: id));
+    }
+    case '/propiedades/editar': {
+      final id = settings.arguments as int?;
+      return MaterialPageRoute(builder: (_) => EditarPropiedadScreen(propiedadId: id));
+    }
+    case '/mobiliario/nuevo': {
+      final id = settings.arguments as int?;
+      return MaterialPageRoute(builder: (_) => NuevoMobiliarioScreen(propiedadId: id));
+    }
+    case '/mobiliario/editar': {
+      final id = settings.arguments as int?;
+      return MaterialPageRoute(builder: (_) => EditarMobiliarioScreen(propiedadMobiliarioId: id));
+    }
+    case '/inquilinos':
+      return MaterialPageRoute(builder: (_) => const InquilinosScreen());
+    case '/inquilinos/nuevo':
+      return MaterialPageRoute(builder: (_) => const NuevoInquilinoScreen());
+    case '/inquilinos/info': {
+      final id = settings.arguments as int?;
+      return MaterialPageRoute(builder: (_) => InformacionInquilinoScreen(arrendatarioId: id));
+    }
+    case '/inquilinos/editar': {
+      final id = settings.arguments as int?;
+      return MaterialPageRoute(builder: (_) => EditarInquilinoScreen(arrendatarioId: id));
+    }
+    case '/pagos':
+      return MaterialPageRoute(builder: (_) => const PagosScreen());
+    case '/contratos':
+      return MaterialPageRoute(builder: (_) => const ContratosScreen());
+    case '/contratos/nuevo':
+      return MaterialPageRoute(builder: (_) => const NuevoContratoScreen());
+    case '/contratos/detalle': {
+      final id = settings.arguments as int?;
+      return MaterialPageRoute(builder: (_) => DetalleContratoScreen(contratoId: id));
+    }
+    case '/mantenimiento':
+      return MaterialPageRoute(builder: (_) => const MantenimientoScreen());
+    case '/mantenimiento/nuevo':
+      return MaterialPageRoute(builder: (_) => const NuevoReporteScreen());
+    case '/mantenimiento/editar': {
+      final id = settings.arguments as int?;
+      return MaterialPageRoute(builder: (_) => EditarReporteScreen(reporteId: id));
+    }
+    case '/documentos':
+      return MaterialPageRoute(builder: (_) => const DocumentosScreen());
+    case '/fiscal':
+      return MaterialPageRoute(builder: (_) => const FiscalScreen());
+    case '/fiscal/nuevo':
+      return MaterialPageRoute(builder: (_) => const NuevoFiscalScreen());
+    case '/fiscal/detalle': {
+      final id = settings.arguments as int?;
+      return MaterialPageRoute(builder: (_) => DetalleFiscalScreen(fiscalId: id));
+    }
+    default:
+      return MaterialPageRoute(builder: (_) => const LandingScreen());
   }
 }
