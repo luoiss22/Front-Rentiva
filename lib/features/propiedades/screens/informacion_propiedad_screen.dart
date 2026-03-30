@@ -161,6 +161,35 @@ class _InformacionPropiedadScreenState
     _cargarPropiedad();
   }
 
+  /// Solo recarga la imagen — una sola llamada API, sin tocar el resto del estado.
+  Future<void> _recargarImagen() async {
+    if (widget.propiedadId == null || _propiedad == null) return;
+    try {
+      final data = await ApiClient.get('/propiedades/${widget.propiedadId}/');
+      final nuevaImagen = data['imagen'] as String? ?? '';
+      PaintingBinding.instance.imageCache.clear();
+      setState(() {
+        _propiedad = PropiedadDetalle(
+          id: _propiedad!.id,
+          nombre: _propiedad!.nombre,
+          precio: _propiedad!.precio,
+          direccion: _propiedad!.direccion,
+          ciudad: _propiedad!.ciudad,
+          estadoGeografico: _propiedad!.estadoGeografico,
+          descripcion: _propiedad!.descripcion,
+          imagen: nuevaImagen,
+          estado: _propiedad!.estado,
+          tipo: _propiedad!.tipo,
+          superficieM2: _propiedad!.superficieM2,
+          inquilino: _propiedad!.inquilino,
+          mobiliario: _propiedad!.mobiliario,
+          pagos: _propiedad!.pagos,
+        );
+        _cacheBuster = DateTime.now().millisecondsSinceEpoch;
+      });
+    } catch (_) {}
+  }
+
   Future<void> _cargarPropiedad() async {
     if (widget.propiedadId == null) {
       setState(() { _error = 'ID de propiedad no especificado'; _loading = false; });
@@ -321,9 +350,7 @@ class _InformacionPropiedadScreenState
                       arguments: propiedad.id,
                     );
                     if (context.mounted) {
-                      PaintingBinding.instance.imageCache.clear();
-                      setState(() { _loading = true; _error = null; });
-                      _cargarPropiedad();
+                      _recargarImagen();
                     }
                   },
                 ),
