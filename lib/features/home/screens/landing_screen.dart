@@ -1,7 +1,37 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../../core/providers/auth_provider.dart';
 
-class LandingScreen extends StatelessWidget {
+class LandingScreen extends StatefulWidget {
   const LandingScreen({super.key});
+
+  @override
+  State<LandingScreen> createState() => _LandingScreenState();
+}
+
+class _LandingScreenState extends State<LandingScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Después del primer frame, verificar si hay sesión activa
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkSession());
+  }
+
+  Future<void> _checkSession() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    // Esperar a que termine de inicializar si todavía está cargando
+    if (auth.cargando) {
+      await Future.doWhile(() async {
+        await Future.delayed(const Duration(milliseconds: 50));
+        return auth.cargando;
+      });
+    }
+    if (!mounted) return;
+    if (auth.estaAutenticado) {
+      final destino = auth.esAdmin ? '/admin' : '/inicio-usuario';
+      Navigator.pushReplacementNamed(context, destino);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
