@@ -417,10 +417,17 @@ class _HeroImage extends StatelessWidget {
             top: 12,
             right: 12,
             child: GestureDetector(
-              onTap: () => Navigator.pushNamed(
-                context, '/propiedades/editar',
-                arguments: propiedad.id,
-              ),
+              onTap: () async {
+                await Navigator.pushNamed(
+                  context, '/propiedades/editar',
+                  arguments: propiedad.id,
+                );
+                // Recargar datos al volver de editar
+                if (context.mounted) {
+                  setState(() { _loading = true; _error = null; });
+                  _cargarPropiedad();
+                }
+              },
               child: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(

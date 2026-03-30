@@ -7,7 +7,7 @@ import '../services/storage_service.dart';
 
 /// Estado global de autenticacion.
 class AuthProvider extends ChangeNotifier {
-  dynamic _usuario; // PropietarioModel o AdminModel
+  dynamic _usuario;
   String _userType = 'propietario';
   bool _cargando = true;
 
@@ -23,42 +23,54 @@ class AuthProvider extends ChangeNotifier {
     return '';
   }
 
-  /// Intenta restaurar la sesion al abrir la app.
+  /// Intenta restaurar la sesion al abrir la app o hacer F5.
   Future<void> inicializar() async {
     _cargando = true;
     notifyListeners();
+
+    final loggedIn = await StorageService.isLoggedIn();
+    if (!loggedIn) {
+      _cargando = false;
+      notifyListeners();
+      return;
+    }
+
+    // Intento 1: access token vigente
     try {
-      final loggedIn = await StorageService.isLoggedIn();
-      if (!loggedIn) {
+      final result = await AuthService.me();
+      _usuario = result.usuario;
+      _userType = result.userType;
+      _cargando = false;
+      notifyListeners();
+      return;
+    } on ApiException catch (e) {
+      // Solo si es 401 intentamos refresh; cualquier otro error (red, etc.) no borra sesión
+      if (e.statusCode != 401) {
+        // Error de red u otro — mantenemos la sesión guardada, dejamos al usuario entrar
         _cargando = false;
         notifyListeners();
         return;
       }
-      // Intento 1: con el access token actual
-      try {
-        final result = await AuthService.me();
-        _usuario = result.usuario;
-        _userType = result.userType;
-        return;
-      } catch (_) {
-        // Access token vencido — intentar refresh antes de rendirse
-      }
-      // Intento 2: refrescar el token y reintentar
+    } catch (_) {
+      // Error inesperado de red — no borrar sesión
+      _cargando = false;
+      notifyListeners();
+      return;
+    }
+
+    // Intento 2: access expiró (401) — hacer refresh y reintentar
+    try {
       final refreshed = await ApiClient.refreshToken();
       if (refreshed) {
         final result = await AuthService.me();
         _usuario = result.usuario;
         _userType = result.userType;
       } else {
-        // Refresh también falló — sesión inválida, limpiar
-        _usuario = null;
-        _userType = 'propietario';
+        // Refresh token también expiró — sesión inválida, limpiar
         await StorageService.clear();
       }
     } catch (_) {
-      _usuario = null;
-      _userType = 'propietario';
-      await StorageService.clear();
+      // Refresh falló por red — no borrar, dejar tokens para el próximo intento
     } finally {
       _cargando = false;
       notifyListeners();
@@ -70,10 +82,7 @@ class AuthProvider extends ChangeNotifier {
     required String email,
     required String password,
   }) async {
-    final result = await AuthService.login(
-      email: email,
-      password: password,
-    );
+    final result = await AuthService.login(email: email, password: password);
     _usuario = result.usuario;
     _userType = result.userType;
     notifyListeners();
