@@ -145,6 +145,7 @@ class _InformacionPropiedadScreenState
   bool _loading = true;
   String? _error;
   String? _pagosError;
+  int _cacheBuster = DateTime.now().millisecondsSinceEpoch;
 
   final List<_TabItem> _tabs = const [
     _TabItem(key: 'detalles',   label: 'Detalles'),
@@ -264,6 +265,7 @@ class _InformacionPropiedadScreenState
         );
         _loading = false;
         _pagosError = pagosError;
+        _cacheBuster = DateTime.now().millisecondsSinceEpoch;
       });
     } catch (e) {
       setState(() { _error = 'No se pudo cargar la propiedad'; _loading = false; });
@@ -309,7 +311,7 @@ class _InformacionPropiedadScreenState
           SliverToBoxAdapter(
             child: Column(
               children: [
-                _HeroImage(propiedad: propiedad),
+                _HeroImage(propiedad: propiedad, cacheBuster: _cacheBuster),
                 Padding(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -363,7 +365,8 @@ class _InformacionPropiedadScreenState
 // ─── HERO IMAGE ───────────────────────────────────────────────────────────────
 class _HeroImage extends StatelessWidget {
   final PropiedadDetalle propiedad;
-  const _HeroImage({required this.propiedad});
+  final int cacheBuster;
+  const _HeroImage({required this.propiedad, required this.cacheBuster});
 
   @override
   Widget build(BuildContext context) {
@@ -375,7 +378,7 @@ class _HeroImage extends StatelessWidget {
         children: [
           Image.network(
             propiedad.imagen.isNotEmpty
-                ? '${propiedad.imagen}?t=${DateTime.now().millisecondsSinceEpoch}'
+                ? '${propiedad.imagen}?t=$cacheBuster'
                 : '',
             fit: BoxFit.cover,
             errorBuilder: (context, error, stackTrace) => Container(
