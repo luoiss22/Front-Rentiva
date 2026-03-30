@@ -374,7 +374,9 @@ class _HeroImage extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           Image.network(
-            propiedad.imagen,
+            propiedad.imagen.isNotEmpty
+                ? '${propiedad.imagen}?t=${DateTime.now().millisecondsSinceEpoch}'
+                : '',
             fit: BoxFit.cover,
             errorBuilder: (context, error, stackTrace) => Container(
               color: const Color(0xFFACF0F2).withValues(alpha: 0.3),
