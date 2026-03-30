@@ -427,8 +427,10 @@ class _HeroImage extends StatelessWidget {
                   context, '/propiedades/editar',
                   arguments: propiedad.id,
                 );
-                // Recargar datos al volver de editar
                 if (context.mounted) {
+                  // Limpiar cache de imágenes de Flutter para forzar recarga
+                  PaintingBinding.instance.imageCache.clear();
+                  PaintingBinding.instance.imageCache.clearLive();
                   setState(() { _loading = true; _error = null; });
                   _cargarPropiedad();
                 }
