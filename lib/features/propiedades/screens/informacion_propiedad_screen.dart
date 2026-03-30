@@ -171,7 +171,7 @@ class _InformacionPropiedadScreenState
       // Mobiliario
       List<PropiedadMobiliario> mobiliario = [];
       try {
-        final mobData = await ApiClient.get('/propiedades/${widget.propiedadId}/mobiliario/');
+        final mobData = await ApiClient.get('/propiedad-mobiliario/?propiedad=${widget.propiedadId}');
         final mobList = mobData is List ? mobData : (mobData['results'] ?? []);
         mobiliario = (mobList as List).map<PropiedadMobiliario>((m) {
           final mob = m['mobiliario'] ?? m;
