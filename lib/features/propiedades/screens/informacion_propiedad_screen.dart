@@ -311,7 +311,11 @@ class _InformacionPropiedadScreenState
           SliverToBoxAdapter(
             child: Column(
               children: [
-                _HeroImage(propiedad: propiedad, cacheBuster: _cacheBuster),
+                _HeroImage(
+                  key: ValueKey(_cacheBuster),
+                  propiedad: propiedad,
+                  cacheBuster: _cacheBuster,
+                ),
                 Padding(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
