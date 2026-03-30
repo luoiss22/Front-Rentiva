@@ -19,8 +19,8 @@ class ApiClient {
   // CONFIGURA AQUÍ TU URL BASE
   // Android emulator → 10.0.2.2  |  iOS sim / Web → localhost
   // -----------------------------------------------------------
-  static const String baseUrl = 'http://localhost:8000/api/v1';
-  // static const String baseUrl = 'http://10.0.2.2:8000/api/v1';
+  static const String baseUrl = 'http://23.94.202.152:8080/api/v1';
+  // static const String baseUrl = 'http://localhost:8000/api/v1';
 
   /// Bandera para evitar loops infinitos de refresh
   static bool _isRefreshing = false;
