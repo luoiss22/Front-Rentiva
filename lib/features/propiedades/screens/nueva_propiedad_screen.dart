@@ -83,7 +83,7 @@ class _NuevaPropiedadScreenState extends State<NuevaPropiedadScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
     try {
-      final body = <String, dynamic>{
+      final body = <String, String>{
         'nombre':            _nombreCtrl.text.trim(),
         'direccion':         _direccionCtrl.text.trim(),
         'ciudad':            _ciudadCtrl.text.trim(),
@@ -96,7 +96,19 @@ class _NuevaPropiedadScreenState extends State<NuevaPropiedadScreen> {
         if (_superficieCtrl.text.isNotEmpty)
           'superficie_m2': _superficieCtrl.text.trim(),
       };
-      await ApiClient.post('/propiedades/', body);
+
+      if (_imageFile != null || _webImage != null) {
+        await ApiClient.multipart(
+          'POST',
+          '/propiedades/',
+          fields: body,
+          file: _imageFile,
+          fileField: 'imagen',
+        );
+      } else {
+        await ApiClient.post('/propiedades/', body);
+      }
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
