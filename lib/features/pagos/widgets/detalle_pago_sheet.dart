@@ -329,7 +329,7 @@ class _DetallePagoSheetState extends State<DetallePagoSheet> {
                   try {
                     await FichaPagoPdf.generar(pago);
                   } catch (e) {
-                    _snack('Error al generar PDF: $e', Colors.red);
+                    _snack(e.toString(), Colors.red);
                   }
                 }),
               ] else if (pago.estado == PagoEstado.pendiente ||
@@ -340,7 +340,7 @@ class _DetallePagoSheetState extends State<DetallePagoSheet> {
                   try {
                     await FichaPagoPdf.generar(pago);
                   } catch (e) {
-                    _snack('Error al generar PDF: $e', Colors.red);
+                    _snack(e.toString(), Colors.red);
                   }
                 }),
               ],

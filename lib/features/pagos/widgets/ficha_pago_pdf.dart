@@ -13,8 +13,23 @@ class FichaPagoPdf {
     // Datos por defecto si no existe ficha asociada
     final codigo = ficha?.codigoReferencia ??
         'REF-${pago.id.toString().padLeft(6, '0')}';
-    final clabe = ficha?.clabeInterbancaria ?? '012345678901234567';
-    final banco = ficha?.banco ?? 'BBVA México';
+    
+    final clabeDb = ficha?.clabeInterbancaria;
+    final clabe = (clabeDb != null && clabeDb.isNotEmpty) 
+        ? clabeDb 
+        : (pago.propietarioClabe.isNotEmpty ? pago.propietarioClabe : 'CLABE no registrada');
+
+    final bancoDb = ficha?.banco;
+    final banco = (bancoDb != null && bancoDb.isNotEmpty) 
+        ? bancoDb 
+        : (pago.propietarioBanco.isNotEmpty ? pago.propietarioBanco : 'Banco no registrado');
+
+    if (pago.propietarioBanco.isEmpty || pago.propietarioClabe.isEmpty) {
+      if (ficha == null || (ficha.banco.isEmpty && ficha.clabeInterbancaria.isEmpty)) {
+        throw 'El propietario no ha configurado sus datos bancarios.';
+      }
+    }
+
     final fechaGen = ficha?.fechaGeneracion ?? DateTime.now();
 
     final pdf = pw.Document();
@@ -122,7 +137,7 @@ class FichaPagoPdf {
             _infoCard([
               _row('Banco destino', banco),
               _row('CLABE interbancaria', clabe),
-              _row('Beneficiario', 'Rentiva S.A. de C.V.'),
+              _row('Beneficiario', pago.propietarioNombre),
               _row('Referencia', codigo),
               _row('Concepto', 'Renta ${pago.periodo}'),
             ]),
@@ -167,7 +182,7 @@ class FichaPagoPdf {
               ),
               child: pw.Column(children: [
                 pw.Text(
-                  'Ficha generada: ${_fmtDate(fechaGen)}  •  Válida hasta: ${_fmtDate(pago.fechaLimite)}',
+                  'Ficha generada: ${_fmtDate(fechaGen)}  -  Válida hasta: ${_fmtDate(pago.fechaLimite)}',
                   style: const pw.TextStyle(
                       color: PdfColors.grey600, fontSize: 8),
                 ),

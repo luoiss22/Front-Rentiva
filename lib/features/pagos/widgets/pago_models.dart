@@ -76,6 +76,38 @@ class FichaPago {
   }
 }
 
+class DatosFiscales {
+  final int id;
+  final String tipoEntidad;
+  final String nombreORazonSocial;
+  final String rfc;
+  final String regimenFiscal;
+  final String usoCfdi;
+  final String codigoPostal;
+
+  const DatosFiscales({
+    required this.id,
+    required this.tipoEntidad,
+    required this.nombreORazonSocial,
+    required this.rfc,
+    required this.regimenFiscal,
+    required this.usoCfdi,
+    required this.codigoPostal,
+  });
+
+  factory DatosFiscales.fromJson(Map<String, dynamic> json) {
+    return DatosFiscales(
+      id: json['id'] as int,
+      tipoEntidad: json['tipo_entidad'] ?? '',
+      nombreORazonSocial: json['nombre_o_razon_social'] ?? '',
+      rfc: json['rfc'] ?? '',
+      regimenFiscal: json['regimen_fiscal'] ?? '',
+      usoCfdi: json['uso_cfdi'] ?? '',
+      codigoPostal: json['codigo_postal'] ?? '',
+    );
+  }
+}
+
 class Factura {
   final int id;
   final String folioFiscal;
@@ -85,6 +117,8 @@ class Factura {
   final String? xmlPath;
   final String? pdfPath;
   final DateTime fechaEmision;
+  final DatosFiscales? emisorDetalles;
+  final DatosFiscales? receptorDetalles;
 
   const Factura({
     required this.id,
@@ -95,6 +129,8 @@ class Factura {
     this.xmlPath,
     this.pdfPath,
     required this.fechaEmision,
+    this.emisorDetalles,
+    this.receptorDetalles,
   });
 
   factory Factura.fromJson(Map<String, dynamic> json) {
@@ -107,6 +143,8 @@ class Factura {
       xmlPath: json['xml_path'] as String?,
       pdfPath: json['pdf_path'] as String?,
       fechaEmision: DateTime.tryParse(json['fecha_emision'] ?? '') ?? DateTime.now(),
+      emisorDetalles: json['emisor_detalles'] != null ? DatosFiscales.fromJson(json['emisor_detalles']) : null,
+      receptorDetalles: json['receptor_detalles'] != null ? DatosFiscales.fromJson(json['receptor_detalles']) : null,
     );
   }
 }
@@ -124,6 +162,9 @@ class Pago {
   final PagoEstado estado;
   final DateTime createdAt;
   final String inquilinoNombre;
+  final String propietarioNombre;
+  final String propietarioBanco;
+  final String propietarioClabe;
   final FichaPago? ficha;
   final Factura? factura;
   final List<String> datosFiscalesFaltantes;
@@ -141,6 +182,9 @@ class Pago {
     required this.estado,
     required this.createdAt,
     required this.inquilinoNombre,
+    required this.propietarioNombre,
+    this.propietarioBanco = '',
+    this.propietarioClabe = '',
     this.ficha,
     this.factura,
     this.datosFiscalesFaltantes = const [],
@@ -159,7 +203,10 @@ class Pago {
       recargaMora: double.tryParse(json['recargo_mora'].toString()) ?? 0,
       estado: _parseEstado(json['estado']),
       createdAt: DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
-      inquilinoNombre: json['contrato']?['arrendatario_nombre'] ?? json['inquilino_nombre'] ?? 'Sin nombre',
+      inquilinoNombre: json['inquilino_nombre'] ?? 'Sin nombre',
+      propietarioNombre: json['propietario_nombre'] ?? 'Propietario no registrado',
+      propietarioBanco: json['propietario_banco'] ?? '',
+      propietarioClabe: json['propietario_clabe'] ?? '',
       ficha: json['ficha'] != null ? FichaPago.fromJson(json['ficha']) : null,
       factura: json['factura'] != null ? Factura.fromJson(json['factura']) : null,
       datosFiscalesFaltantes: List<String>.from(json['datos_fiscales_faltantes'] ?? []),
@@ -210,6 +257,9 @@ class Pago {
       estado: estado ?? this.estado,
       createdAt: createdAt,
       inquilinoNombre: inquilinoNombre,
+      propietarioNombre: propietarioNombre,
+      propietarioBanco: propietarioBanco,
+      propietarioClabe: propietarioClabe,
       ficha: ficha,
       factura: factura,
       datosFiscalesFaltantes: datosFiscalesFaltantes ?? this.datosFiscalesFaltantes,

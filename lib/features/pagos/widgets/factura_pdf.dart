@@ -114,19 +114,19 @@ class FacturaPdf {
               children: [
                 pw.Expanded(
                   child: _datosBox('EMISOR', [
-                    'Rentiva S.A. de C.V.',
-                    'RFC: REN210101ABC',
-                    'Régimen: 601 — General',
-                    'C.P.: 06600',
+                    factura.emisorDetalles?.nombreORazonSocial ?? 'Emisor no registrado',
+                    'RFC: ${factura.emisorDetalles?.rfc ?? "No registrado"}',
+                    'Régimen: ${factura.emisorDetalles?.regimenFiscal ?? "No registrado"}',
+                    'C.P.: ${factura.emisorDetalles?.codigoPostal ?? "No registrado"}',
                   ]),
                 ),
                 pw.SizedBox(width: 16),
                 pw.Expanded(
                   child: _datosBox('RECEPTOR', [
-                    pago.inquilinoNombre,
-                    'RFC: XAXX010101000',
-                    'Uso CFDI: G03 — Gastos en general',
-                    'C.P.: 06600',
+                    factura.receptorDetalles?.nombreORazonSocial ?? pago.inquilinoNombre,
+                    'RFC: ${factura.receptorDetalles?.rfc ?? "No registrado"}',
+                    'Uso CFDI: ${factura.receptorDetalles?.usoCfdi ?? "No registrado"}',
+                    'C.P.: ${factura.receptorDetalles?.codigoPostal ?? "No registrado"}',
                   ]),
                 ),
               ],
@@ -202,7 +202,7 @@ class FacturaPdf {
             pw.SizedBox(height: 6),
             pw.Center(
               child: pw.Text(
-                'Este documento es una representación impresa de un CFDI  •  Generado: ${_fmtDate(now)}',
+                'Este documento es una representación impresa de un CFDI  -  Generado: ${_fmtDate(now)}',
                 style: const pw.TextStyle(
                     color: PdfColors.grey600, fontSize: 8),
               ),

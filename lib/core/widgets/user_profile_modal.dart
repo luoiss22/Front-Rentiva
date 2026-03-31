@@ -151,8 +151,18 @@ class _UserProfileModalState extends State<UserProfileModal> {
           'telefono':     data['telefono']  ?? '',
           'email':        data['email']     ?? '',
           'claveElector': data['folio_ine'] ?? '',
+          'banco':        data['banco']     ?? '',
+          'clabe':        data['clabe_interbancaria'] ?? '',
           'cargo':        userType,
         };
+        if ((data['clabe_interbancaria'] ?? '').isNotEmpty) {
+          _bancario = DatosBancarios(
+            banco: data['banco']?.isNotEmpty == true ? data['banco'] : 'BBVA',
+            clabe: data['clabe_interbancaria'],
+          );
+          _clabeCtrl.text = _bancario!.clabe;
+          _banco = _bancario!.banco;
+        }
         _loadingProfile = false;
       });
       _nombreCtrl.text       = nombre;
@@ -293,6 +303,8 @@ class _UserProfileModalState extends State<UserProfileModal> {
         'telefono':  _telefonoCtrl.text.trim(),
         'email':     _emailCtrl.text.trim(),
         'folio_ine': _claveElectorCtrl.text.trim(),
+        'banco':     _banco,
+        'clabe_interbancaria': _clabeCtrl.text.trim(),
         if (_fechaNacCtrl.text.isNotEmpty)
           'fecha_nacimiento': _displayAIso(_fechaNacCtrl.text),
       };
