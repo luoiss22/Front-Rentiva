@@ -89,7 +89,7 @@ class UserProfileModal extends StatefulWidget {
 
 class _UserProfileModalState extends State<UserProfileModal> {
   bool _isEditing = false;
-  bool _obscurePassword = true;
+  final bool _obscurePassword = true;
   bool _loadingProfile = true;
 
   Map<String, String> _userData = {

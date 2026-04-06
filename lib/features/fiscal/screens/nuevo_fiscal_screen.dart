@@ -84,7 +84,7 @@ class _NuevoFiscalScreenState extends State<NuevoFiscalScreen> {
 
               // Tipo entidad
               DropdownButtonFormField<String>(
-                value: _tipoEntidad,
+                initialValue: _tipoEntidad,
                 decoration: _deco('Tipo de entidad',
                     Icons.business_outlined),
                 items: const [

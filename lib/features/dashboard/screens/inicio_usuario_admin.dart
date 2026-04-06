@@ -304,7 +304,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
           ));
           _isAddingProvider = false;
           for (final c in [_nombreEspCtrl, _telEspCtrl, _emailEspCtrl,
-                _ciudadEspCtrl, _estadoGeoCtrl, _aniosExpCtrl]) c.clear();
+                _ciudadEspCtrl, _estadoGeoCtrl, _aniosExpCtrl]) {
+            c.clear();
+          }
           _tipoSel = 'Fontanero'; _disponible = true;
         });
         _snack('Especialista registrado correctamente', const Color(0xFF1695A3));
@@ -517,7 +519,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
             adminSeccion('Informacion Profesional'), const SizedBox(height: 10),
             adminFila('Especialidad', e.especialidad),
             adminFila('Años de Experiencia', '${e.aniosExperiencia} anios'),
-            adminFila('Calificacion', '${e.calificacion.toStringAsFixed(2)}'),
+            adminFila('Calificacion', e.calificacion.toStringAsFixed(2)),
             const SizedBox(height: 14),
             adminSeccion('Contacto y Ubicacion'), const SizedBox(height: 10),
             adminFila('Telefono', e.telefono), adminFila('Email', e.email),
@@ -622,7 +624,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
             duration: const Duration(milliseconds: 180),
             layoutBuilder: (cur, prev) => Stack(
               alignment: Alignment.topCenter,
-              children: [...prev, if (cur != null) cur],
+              children: [...prev, ?cur],
             ),
             child: _activeTab == 0 ? _buildTabUsuarios()
                 : _activeTab == 1 ? _buildTabAdmins()

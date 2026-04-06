@@ -1170,7 +1170,7 @@ class _EditarInquilinoScreenState extends State<EditarInquilinoScreen> {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeColor: const Color(0xFF1695A3),
+            activeThumbColor: const Color(0xFF1695A3),
           ),
         ],
       ),

@@ -23,7 +23,7 @@ class _NuevoReporteScreenState extends State<NuevoReporteScreen> {
   final _costoEstimadoCtrl = TextEditingController();
   String  _tipoEspecialista = '';
   String  _prioridad        = 'media';
-  String  _estado           = 'abierto';
+  final String  _estado           = 'abierto';
   int?    _propiedadId;
   int?    _especialistaId;
   bool    _submitting = false;

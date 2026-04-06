@@ -62,7 +62,7 @@ class FotosPropiedadService {
         'propiedad': propiedadId.toString(),
         'es_principal': esPrincipal.toString(),
         'orden': orden.toString(),
-        if (descripcion != null) 'descripcion': descripcion,
+        'descripcion': ?descripcion,
       },
       file: imagen,
       fileField: 'imagen',

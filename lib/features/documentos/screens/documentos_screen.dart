@@ -447,7 +447,7 @@ class _SubirDocumentoSheetState extends State<_SubirDocumentoSheet> {
 
               // Tipo de documento
               DropdownButtonFormField<String>(
-                value: _tipoDocumento,
+                initialValue: _tipoDocumento,
                 decoration: _inputDeco('Tipo de documento', Icons.category_outlined),
                 items: widget.tipos.entries
                     .map((e) => DropdownMenuItem(
@@ -465,7 +465,7 @@ class _SubirDocumentoSheetState extends State<_SubirDocumentoSheet> {
                   Expanded(
                     flex: 3,
                     child: DropdownButtonFormField<String>(
-                      value: _tipoEntidad,
+                      initialValue: _tipoEntidad,
                       decoration: _inputDeco('Pertenece a', Icons.link_outlined),
                       items: widget.tiposEntidad.entries
                           .map((e) => DropdownMenuItem(

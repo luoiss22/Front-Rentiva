@@ -18,7 +18,7 @@ class _InicioUsuarioScreenState extends State<InicioUsuarioScreen> {
   String _nombre = '';
   bool _loadingStats = true;
   List<_StatData> _stats = [];
-  List<_ChartData> _chartData = [];
+  final List<_ChartData> _chartData = [];
   List<Map<String, dynamic>> _actividad = [];
 
   @override

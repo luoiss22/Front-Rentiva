@@ -419,7 +419,7 @@ class _TabGeneral extends StatelessWidget {
               ],
             ),
           ),
-          if (trailing != null) trailing,
+          ?trailing,
         ],
       ),
     );

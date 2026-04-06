@@ -149,7 +149,7 @@ class _NuevoContratoScreenState extends State<NuevoContratoScreen> {
 
                     // Dropdown propiedad
                     DropdownButtonFormField<int>(
-                      value: _propiedadId,
+                      initialValue: _propiedadId,
                       decoration: _inputDeco('Propiedad',
                           Icons.home_outlined),
                       items: _propiedades
@@ -167,7 +167,7 @@ class _NuevoContratoScreenState extends State<NuevoContratoScreen> {
 
                     // Dropdown arrendatario
                     DropdownButtonFormField<int>(
-                      value: _arrendatarioId,
+                      initialValue: _arrendatarioId,
                       decoration: _inputDeco('Arrendatario',
                           Icons.person_outline),
                       items: _arrendatarios
@@ -257,7 +257,7 @@ class _NuevoContratoScreenState extends State<NuevoContratoScreen> {
                         Expanded(
                           flex: 2,
                           child: DropdownButtonFormField<String>(
-                            value: _periodoPago,
+                            initialValue: _periodoPago,
                             decoration: _inputDeco('Periodo',
                                 Icons.repeat),
                             items: _periodos

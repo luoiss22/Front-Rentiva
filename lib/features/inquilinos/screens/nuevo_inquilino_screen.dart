@@ -49,7 +49,7 @@ class _NuevoInquilinoScreenState extends State<NuevoInquilinoScreen> {
   final _penalizacionCtrl    = TextEditingController();
   final _observacionesCtrl   = TextEditingController();
   String _periodoPago        = 'mensual';
-  String _estadoContrato     = 'activo';
+  final String _estadoContrato     = 'activo';
   int?   _propiedadId;
 
   // ── Controladores — DatosFiscales Arrendatario ────────────────────────────
@@ -951,7 +951,7 @@ class _NuevoInquilinoScreenState extends State<NuevoInquilinoScreen> {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeColor: const Color(0xFF1695A3),
+            activeThumbColor: const Color(0xFF1695A3),
           ),
         ],
       ),
