@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'user_profile_modal.dart';
+import '../services/api_client.dart';
 import '../../data/services/notificaciones_service.dart';
 
 class AppHeader extends StatefulWidget implements PreferredSizeWidget {
@@ -23,11 +24,29 @@ class AppHeader extends StatefulWidget implements PreferredSizeWidget {
 
 class _AppHeaderState extends State<AppHeader> {
   bool _hasUnreadNotifications = false;
+  String? _avatarUrl;
+  String _profileInitials = '';
 
   @override
   void initState() {
     super.initState();
     _checkUnreadNotifications();
+    _loadProfileAvatar();
+  }
+
+  Future<void> _loadProfileAvatar() async {
+    try {
+      final raw = await ApiClient.get('/auth/me/');
+      final data = raw['usuario'] as Map<String, dynamic>? ?? raw;
+      final nombre = (data['nombre'] ?? '').toString();
+      final apellidos = (data['apellidos'] ?? '').toString();
+      final initials = '${nombre.isNotEmpty ? nombre[0].toUpperCase() : ''}${apellidos.isNotEmpty ? apellidos[0].toUpperCase() : ''}';
+      if (!mounted) return;
+      setState(() {
+        _avatarUrl = ApiClient.resolveMediaUrl(data['foto'] as String?);
+        _profileInitials = initials;
+      });
+    } catch (_) {}
   }
 
   Future<void> _checkUnreadNotifications() async {
@@ -120,15 +139,36 @@ class _AppHeaderState extends State<AppHeader> {
                   border: Border.all(
                       color: const Color(0xFFACF0F2), width: 2),
                 ),
-                child: Center(
-                  child: Text(
-                    widget.userInitials,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                child: ClipOval(
+                  child: _avatarUrl != null
+                      ? Image.network(
+                          _avatarUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Center(
+                            child: Text(
+                              _profileInitials.isNotEmpty
+                                  ? _profileInitials
+                                  : widget.userInitials,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        )
+                      : Center(
+                          child: Text(
+                            _profileInitials.isNotEmpty
+                                ? _profileInitials
+                                : widget.userInitials,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
                 ),
               ),
             ),
@@ -143,6 +183,6 @@ class _AppHeaderState extends State<AppHeader> {
       context: context,
       barrierColor: Colors.black.withOpacity(0.6),
       builder: (_) => const UserProfileModal(),
-    );
+    ).then((_) => _loadProfileAvatar());
   }
 }

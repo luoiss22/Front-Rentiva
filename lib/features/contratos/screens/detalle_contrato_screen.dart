@@ -111,6 +111,7 @@ class _DetalleContratoScreenState extends State<DetalleContratoScreen> {
     final c = _contrato!;
     final estado = c['estado'] ?? 'borrador';
     final color = _colorEstado(estado);
+    final observaciones = (c['observaciones'] ?? c['notas'] ?? '').toString();
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 40),
@@ -155,18 +156,18 @@ class _DetalleContratoScreenState extends State<DetalleContratoScreen> {
           ]),
           const SizedBox(height: 16),
 
-          // Deposito y notas si existen
+          // Deposito y observaciones si existen
           if (c['deposito'] != null)
             _infoCard([
               _row(Icons.savings_outlined, 'Depósito',
                   '\$${c['deposito']}'),
             ]),
-          if (c['notas'] != null && c['notas'].toString().isNotEmpty)
+          if (observaciones.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 16),
               child: _infoCard([
                 _row(Icons.notes_outlined, 'Notas',
-                    c['notas'].toString()),
+                    observaciones),
               ]),
             ),
           const SizedBox(height: 32),

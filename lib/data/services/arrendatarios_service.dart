@@ -77,7 +77,7 @@ class ArrendatarioDetalle {
       email:            json['email']             ?? '',
       fechaNacimiento:  json['fecha_nacimiento']  as String?,
       folioIne:         json['folio_ine']         ?? '',
-      fotoUrl:          json['foto']              as String?,
+      fotoUrl:          ApiClient.resolveMediaUrl(json['foto'] as String?),
       mascotas:         json['mascotas']          ?? false,
       hijos:            json['hijos']             ?? false,
       estado:           json['estado']            ?? 'activo',

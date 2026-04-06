@@ -1,5 +1,9 @@
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:image_picker/image_picker.dart';
 import '../services/api_client.dart';
 import '../services/storage_service.dart';
 import '../utils/upper_case_formatter.dart';
@@ -88,9 +92,14 @@ class UserProfileModal extends StatefulWidget {
 }
 
 class _UserProfileModalState extends State<UserProfileModal> {
+  final ImagePicker _picker = ImagePicker();
   bool _isEditing = false;
   final bool _obscurePassword = true;
   bool _loadingProfile = true;
+  File? _imageFile;
+  Uint8List? _webImage;
+  bool _imagenCambiada = false;
+  String? _fotoUrl;
 
   Map<String, String> _userData = {
     'nombre': '', 'apellidos': '', 'fechaNac': '',
@@ -144,6 +153,7 @@ class _UserProfileModalState extends State<UserProfileModal> {
           ? _isoADisplay(data['fecha_nacimiento'])
           : '';
       setState(() {
+        _fotoUrl = ApiClient.resolveMediaUrl(data['foto'] as String?);
         _userData = {
           'nombre':       nombre,
           'apellidos':    apellidos,
@@ -224,6 +234,29 @@ class _UserProfileModalState extends State<UserProfileModal> {
       } else if (mounted) {
         setState(() => _loadingProfile = false);
       }
+    }
+  }
+
+  Future<void> _pickImage() async {
+    final XFile? image =
+        await _picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+    if (image == null) return;
+
+    if (kIsWeb) {
+      final bytes = await image.readAsBytes();
+      if (!mounted) return;
+      setState(() {
+        _webImage = bytes;
+        _imageFile = null;
+        _imagenCambiada = true;
+      });
+    } else {
+      if (!mounted) return;
+      setState(() {
+        _imageFile = File(image.path);
+        _webImage = null;
+        _imagenCambiada = true;
+      });
     }
   }
 
@@ -312,7 +345,28 @@ class _UserProfileModalState extends State<UserProfileModal> {
       print('[Profile] _handleSave body: $body');
       // ignore: avoid_print
       print('[Profile] _userId: $_userId');
-      await ApiClient.patch('/auth/me/', body);
+      final profileRes = await ApiClient.patch('/auth/me/', body);
+
+      if (_imagenCambiada && (_imageFile != null || _webImage != null)) {
+        final fotoRes = await ApiClient.multipart(
+          'PATCH',
+          '/auth/me/',
+          file: _imageFile,
+          webFileBytes: _webImage,
+          webFileName: 'perfil.jpg',
+          fileField: 'foto',
+        );
+        final fotoData = fotoRes['usuario'] as Map<String, dynamic>? ?? fotoRes;
+        final resolved = ApiClient.resolveMediaUrl(fotoData['foto'] as String?);
+        if (resolved != null) {
+          _fotoUrl = '$resolved?t=${DateTime.now().millisecondsSinceEpoch}';
+        } else {
+          _fotoUrl = null;
+        }
+      } else {
+        final data = profileRes['usuario'] as Map<String, dynamic>? ?? profileRes;
+        _fotoUrl = ApiClient.resolveMediaUrl(data['foto'] as String?);
+      }
 
       // Guardar Datos Fiscales
       if (_userId != null) {
@@ -344,6 +398,11 @@ class _UserProfileModalState extends State<UserProfileModal> {
       }
 
       setState(() {
+        final clabe = _clabeCtrl.text.trim();
+        _bancario = clabe.isNotEmpty
+            ? DatosBancarios(clabe: clabe, banco: _banco)
+            : null;
+
         _userData = {
           'nombre':       _nombreCtrl.text,
           'apellidos':    _apellidosCtrl.text,
@@ -351,9 +410,12 @@ class _UserProfileModalState extends State<UserProfileModal> {
           'telefono':     _telefonoCtrl.text,
           'email':        _emailCtrl.text,
           'claveElector': _claveElectorCtrl.text,
+          'banco':        _banco,
+          'clabe':        clabe,
           'cargo':        _userData['cargo']!,
         };
         _isEditing = false;
+        _imagenCambiada = false;
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -411,6 +473,9 @@ class _UserProfileModalState extends State<UserProfileModal> {
       
       _clabeCtrl.text        = _bancario?.clabe ?? '';
       _banco                 = _bancario?.banco ?? 'BBVA';
+      _imageFile             = null;
+      _webImage              = null;
+      _imagenCambiada        = false;
       _isEditing = false;
     });
   }
@@ -542,24 +607,43 @@ class _UserProfileModalState extends State<UserProfileModal> {
                             border: Border.all(
                                 color: const Color(0xFFACF0F2), width: 3),
                           ),
-                          child: Center(
-                            child: Text(
-                              _initials,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 28,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                          child: ClipOval(
+                            child: _webImage != null
+                                ? Image.memory(_webImage!, fit: BoxFit.cover)
+                                : _imageFile != null
+                                    ? Image.file(_imageFile!, fit: BoxFit.cover)
+                                    : (_fotoUrl != null
+                                        ? Image.network(
+                                            _fotoUrl!,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) => Center(
+                                              child: Text(
+                                                _initials,
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 28,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ),
+                                          )
+                                        : Center(
+                                            child: Text(
+                                              _initials,
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 28,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          )),
                           ),
                         ),
                         Positioned(
                           bottom: 0,
                           right: 0,
                           child: GestureDetector(
-                            onTap: () {
-                              // TODO: image picker
-                            },
+                            onTap: _pickImage,
                             child: Container(
                               width: 26,
                               height: 26,

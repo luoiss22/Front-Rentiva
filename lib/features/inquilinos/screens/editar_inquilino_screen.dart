@@ -80,6 +80,20 @@ class _EditarInquilinoScreenState extends State<EditarInquilinoScreen> {
     {'value': 'anual',   'label': 'Anual'},
   ];
 
+  String _mensajeErrorContrato(String raw) {
+    final m = raw.toLowerCase();
+    if (m.contains('propiedad no está disponible') || m.contains('propiedad no esta disponible')) {
+      return 'La propiedad seleccionada ya no esta disponible.';
+    }
+    if (m.contains('ya tiene un contrato activo')) {
+      return 'La propiedad ya tiene un contrato activo.';
+    }
+    if (m.contains('fecha de fin debe ser posterior')) {
+      return 'Revisa las fechas del contrato: la fecha fin debe ser posterior al inicio.';
+    }
+    return raw;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -156,6 +170,8 @@ class _EditarInquilinoScreenState extends State<EditarInquilinoScreen> {
               _penalizacionCtrl.text   = c['penalizacion_anticipada']?.toString() ?? '';
               _observacionesCtrl.text  = c['observaciones'] ?? '';
             });
+            // Recalcular catálogo de propiedades tras conocer la propiedad actual.
+            await _cargarPropiedades();
           }
         }
       } catch (_) {
@@ -215,11 +231,29 @@ class _EditarInquilinoScreenState extends State<EditarInquilinoScreen> {
 
   Future<void> _cargarPropiedades() async {
     try {
-      // Trae disponibles + la que ya tiene este inquilino (si aplica)
-      final lista = await PropiedadesService.listar();
+      // Trae disponibles + la que ya tiene este inquilino (si aplica).
+      final lista = await PropiedadesService.listar(estado: 'disponible');
+      final opciones = <int, Map<String, dynamic>>{};
+      for (final p in lista) {
+        opciones[p.id] = {'id': p.id, 'nombre': p.nombre};
+      }
+
+      if (_propiedadId != null && !opciones.containsKey(_propiedadId)) {
+        try {
+          final actual = await PropiedadesService.detalle(_propiedadId!);
+          opciones[_propiedadId!] = {
+            'id': _propiedadId,
+            'nombre': (actual['nombre'] ?? 'Propiedad #$_propiedadId').toString(),
+          };
+        } catch (_) {}
+      }
+
       if (mounted) {
         setState(() {
-          _propiedades = lista.map((p) => {'id': p.id, 'nombre': p.nombre}).toList();
+          _propiedades = opciones.values.toList();
+          if (_propiedadId != null && !_propiedades.any((p) => p['id'] == _propiedadId)) {
+            _propiedadId = null;
+          }
         });
       }
     } catch (_) {}
@@ -341,6 +375,18 @@ class _EditarInquilinoScreenState extends State<EditarInquilinoScreen> {
         'estado':           _estado,
       });
 
+      // 1.1. Subir foto si el usuario la cambió
+      if (_imagenCambiada && (_imageFile != null || _webImage != null)) {
+        await ApiClient.multipart(
+          'PATCH',
+          '/arrendatarios/${widget.arrendatarioId}/',
+          file: _imageFile,
+          webFileBytes: _webImage,
+          webFileName: 'inquilino.jpg',
+          fileField: 'foto',
+        );
+      }
+
       // 1.5. Guardar datos fiscales
       final fiscalBody = {
         'tipo_entidad': 'arrendatario',
@@ -396,8 +442,9 @@ class _EditarInquilinoScreenState extends State<EditarInquilinoScreen> {
       Navigator.pop(context);
     } on ApiException catch (e) {
       if (!mounted) return;
+      final detalle = _mensajeErrorContrato(e.message);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message), backgroundColor: Colors.red.shade400,
+        SnackBar(content: Text(detalle), backgroundColor: Colors.red.shade400,
             behavior: SnackBarBehavior.floating),
       );
     } catch (_) {

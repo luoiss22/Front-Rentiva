@@ -93,6 +93,20 @@ class _NuevoInquilinoScreenState extends State<NuevoInquilinoScreen> {
     {'value': 'anual',   'label': 'Anual'},
   ];
 
+  String _mensajeErrorContrato(String raw) {
+    final m = raw.toLowerCase();
+    if (m.contains('propiedad no está disponible') || m.contains('propiedad no esta disponible')) {
+      return 'La propiedad ya no esta disponible. Elige otra para continuar.';
+    }
+    if (m.contains('ya tiene un contrato activo')) {
+      return 'Esa propiedad ya tiene un contrato activo. Selecciona otra propiedad.';
+    }
+    if (m.contains('fecha de fin debe ser posterior')) {
+      return 'Revisa las fechas del contrato: la fecha fin debe ser posterior al inicio.';
+    }
+    return raw;
+  }
+
   @override
   void dispose() {
     _nombreCtrl.dispose();
@@ -233,6 +247,22 @@ class _NuevoInquilinoScreenState extends State<NuevoInquilinoScreen> {
 
       arrendatarioIdCreado = arrendatario.id;
 
+      // 1.1 Subir foto del inquilino (opcional)
+      if (_imageFile != null || _webImage != null) {
+        try {
+          await ApiClient.multipart(
+            'PATCH',
+            '/arrendatarios/${arrendatario.id}/',
+            file: _imageFile,
+            webFileBytes: _webImage,
+            webFileName: 'inquilino.jpg',
+            fileField: 'foto',
+          );
+        } catch (e) {
+          debugPrint("Error subiendo foto de inquilino: $e");
+        }
+      }
+
       // 1.5. Crear Datos Fiscales si aplican
       if (_fiscalRfcCtrl.text.trim().isNotEmpty || _fiscalRazonSocialCtrl.text.trim().isNotEmpty) {
         try {
@@ -283,9 +313,10 @@ class _NuevoInquilinoScreenState extends State<NuevoInquilinoScreen> {
         try { await ArrendatariosService.eliminar(arrendatarioIdCreado); } catch (_) {}
       }
       if (!mounted) return;
+      final detalle = _mensajeErrorContrato(e.message);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error al crear contrato: ${e.message}'),
+          content: Text(detalle),
           backgroundColor: Colors.red.shade400,
           behavior: SnackBarBehavior.floating,
         ),

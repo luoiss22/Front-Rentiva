@@ -23,6 +23,20 @@ class ApiClient {
   static const String baseUrl = 'http://23.94.202.152:8080/api/v1';
   // static const String baseUrl = 'http://localhost:8000/api/v1';
 
+  /// Convierte rutas relativas de media (ej: /media/foto.jpg) en URL absoluta.
+  static String? resolveMediaUrl(String? rawUrl) {
+    if (rawUrl == null || rawUrl.trim().isEmpty) return null;
+    final value = rawUrl.trim();
+    if (value.startsWith('http://') || value.startsWith('https://')) return value;
+
+    final uri = Uri.parse(baseUrl);
+    final origin = '${uri.scheme}://${uri.authority}';
+    if (value.startsWith('/')) {
+      return '$origin$value';
+    }
+    return '$origin/$value';
+  }
+
   /// Bandera para evitar loops infinitos de refresh
   static bool _isRefreshing = false;
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/services/api_client.dart';
 import '../../../core/widgets/app_header.dart';
 import '../../../data/services/contratos_service.dart';
 import '../../../data/services/propiedades_service.dart';
@@ -33,6 +34,20 @@ class _NuevoContratoScreenState extends State<NuevoContratoScreen> {
 
   static const _periodos = ['mensual', 'quincenal', 'semanal', 'anual'];
 
+  String _mensajeErrorContrato(String raw) {
+    final m = raw.toLowerCase();
+    if (m.contains('propiedad no está disponible') || m.contains('propiedad no esta disponible')) {
+      return 'La propiedad ya no esta disponible. Selecciona otra.';
+    }
+    if (m.contains('ya tiene un contrato activo')) {
+      return 'Esa propiedad ya tiene un contrato activo.';
+    }
+    if (m.contains('fecha de fin debe ser posterior')) {
+      return 'La fecha fin debe ser posterior a la fecha de inicio.';
+    }
+    return raw;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -41,7 +56,7 @@ class _NuevoContratoScreenState extends State<NuevoContratoScreen> {
 
   Future<void> _cargarDatos() async {
     try {
-      final props = await PropiedadesService.listar();
+      final props = await PropiedadesService.listar(estado: 'disponible');
       final arren = await ArrendatariosService.listar();
       if (!mounted) return;
       setState(() {
@@ -105,7 +120,7 @@ class _NuevoContratoScreenState extends State<NuevoContratoScreen> {
         if (_depositoCtrl.text.isNotEmpty)
           'deposito': _depositoCtrl.text,
         if (_notasCtrl.text.isNotEmpty)
-          'notas': _notasCtrl.text,
+          'observaciones': _notasCtrl.text,
       });
 
       if (!mounted) return;
@@ -117,11 +132,21 @@ class _NuevoContratoScreenState extends State<NuevoContratoScreen> {
         ),
       );
       Navigator.pop(context, true);
-    } catch (e) {
+    } on ApiException catch (e) {
       if (!mounted) return;
+      final detalle = _mensajeErrorContrato(e.message);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error: $e'),
+          content: Text(detalle),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Sin conexión con el servidor'),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
         ),
