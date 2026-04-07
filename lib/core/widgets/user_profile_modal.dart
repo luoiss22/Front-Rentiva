@@ -251,26 +251,70 @@ class _UserProfileModalState extends State<UserProfileModal> {
     }
   }
 
+  bool _subiendoFoto = false;
+
   Future<void> _pickImage() async {
     final XFile? image =
         await _picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
     if (image == null) return;
 
+    File? file;
+    Uint8List? webBytes;
+
     if (kIsWeb) {
-      final bytes = await image.readAsBytes();
+      webBytes = await image.readAsBytes();
       if (!mounted) return;
-      setState(() {
-        _webImage = bytes;
-        _imageFile = null;
-        _imagenCambiada = true;
-      });
+      setState(() { _webImage = webBytes; _imageFile = null; _imagenCambiada = true; });
     } else {
+      file = File(image.path);
       if (!mounted) return;
-      setState(() {
-        _imageFile = File(image.path);
-        _webImage = null;
-        _imagenCambiada = true;
-      });
+      setState(() { _imageFile = file; _webImage = null; _imagenCambiada = true; });
+    }
+
+    // Upload inmediato — no se necesita botón guardar para la foto
+    setState(() => _subiendoFoto = true);
+    try {
+      final res = await ApiClient.multipart(
+        'PATCH',
+        '/auth/me/',
+        file: file,
+        webFileBytes: webBytes,
+        webFileName: 'perfil.jpg',
+        fileField: 'foto',
+      );
+      final data = res['usuario'] as Map<String, dynamic>? ?? res;
+      final resolved = ApiClient.resolveMediaUrl(data['foto'] as String?);
+      if (mounted) {
+        setState(() {
+          _fotoUrl = resolved != null
+              ? '$resolved?t=${DateTime.now().millisecondsSinceEpoch}'
+              : null;
+          _imagenCambiada = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Foto actualizada'),
+          backgroundColor: Color(0xFF1695A3),
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Error al subir foto: ${e.message}'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('No se pudo subir la foto'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _subiendoFoto = false);
     }
   }
 
@@ -360,27 +404,8 @@ class _UserProfileModalState extends State<UserProfileModal> {
       // ignore: avoid_print
       print('[Profile] _userId: $_userId');
       final profileRes = await ApiClient.patch('/auth/me/', body);
-
-      if (_imagenCambiada && (_imageFile != null || _webImage != null)) {
-        final fotoRes = await ApiClient.multipart(
-          'PATCH',
-          '/auth/me/',
-          file: _imageFile,
-          webFileBytes: _webImage,
-          webFileName: 'perfil.jpg',
-          fileField: 'foto',
-        );
-        final fotoData = fotoRes['usuario'] as Map<String, dynamic>? ?? fotoRes;
-        final resolved = ApiClient.resolveMediaUrl(fotoData['foto'] as String?);
-        if (resolved != null) {
-          _fotoUrl = '$resolved?t=${DateTime.now().millisecondsSinceEpoch}';
-        } else {
-          _fotoUrl = null;
-        }
-      } else {
-        final data = profileRes['usuario'] as Map<String, dynamic>? ?? profileRes;
-        _fotoUrl = ApiClient.resolveMediaUrl(data['foto'] as String?);
-      }
+      final data = profileRes['usuario'] as Map<String, dynamic>? ?? profileRes;
+      _fotoUrl = ApiClient.resolveMediaUrl(data['foto'] as String?);
 
       // Guardar Datos Fiscales
       if (_userId != null) {
@@ -785,18 +810,27 @@ class _UserProfileModalState extends State<UserProfileModal> {
                           bottom: 0,
                           right: 0,
                           child: GestureDetector(
-                            onTap: _pickImage,
+                            onTap: _subiendoFoto ? null : _pickImage,
                             child: Container(
                               width: 26,
                               height: 26,
                               decoration: BoxDecoration(
-                                color: const Color(0xFFEB7F00),
+                                color: _subiendoFoto
+                                    ? Colors.grey
+                                    : const Color(0xFFEB7F00),
                                 shape: BoxShape.circle,
-                                border: Border.all(
-                                    color: Colors.white, width: 2),
+                                border: Border.all(color: Colors.white, width: 2),
                               ),
-                              child: const Icon(Icons.camera_alt,
-                                  color: Colors.white, size: 13),
+                              child: _subiendoFoto
+                                  ? const Padding(
+                                      padding: EdgeInsets.all(5),
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Icon(Icons.camera_alt,
+                                      color: Colors.white, size: 13),
                             ),
                           ),
                         ),
