@@ -223,7 +223,7 @@ class _InquilinosScreenState extends State<InquilinosScreen> {
                       context,
                       '/inquilinos/info',
                       arguments: lista[index].id,
-                    ),
+                    ).then((_) => _recargar()),
                   ),
                 );
               },

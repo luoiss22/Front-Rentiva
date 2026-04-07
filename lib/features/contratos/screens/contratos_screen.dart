@@ -20,8 +20,9 @@ class _ContratosScreenState extends State<ContratosScreen> {
   static const _estados = <String, String>{
     'borrador': 'Borrador',
     'activo': 'Activo',
-    'vencido': 'Vencido',
+    'finalizado': 'Finalizado',
     'cancelado': 'Cancelado',
+    'renovado': 'Renovado',
   };
 
   @override
@@ -47,6 +48,8 @@ class _ContratosScreenState extends State<ContratosScreen> {
   Color _colorEstado(String estado) {
     switch (estado) {
       case 'activo':    return const Color(0xFF1695A3);
+      case 'finalizado': return Colors.blueGrey;
+      case 'renovado':   return const Color(0xFF225378);
       case 'vencido':   return Colors.red;
       case 'cancelado': return Colors.grey;
       default:          return const Color(0xFFEB7F00);

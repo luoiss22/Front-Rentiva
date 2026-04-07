@@ -120,6 +120,8 @@ class _RegisterScreenState extends State<RegisterScreen>
         email: _emailController.text.trim(),
         telefono: _phoneController.text.trim(),
         password: _passwordController.text,
+        fechaNacimiento: fechaBackend,
+        folioIne: _INEController.text.trim().toUpperCase(),
       );
 
       if (!mounted) return;
@@ -325,10 +327,6 @@ class _RegisterScreenState extends State<RegisterScreen>
                               validator: (v) {
                                 if (v != null && v.isNotEmpty && v.length != 18) {
                                   return 'Debe tener 18 caracteres';
-                                }
-                                if (v != null && v.isNotEmpty &&
-                                    !RegExp(r'^[A-Z]{5}\d{6}[A-Z0-9]{7}$').hasMatch(v)) {
-                                  return 'Folio INE inválido';
                                 }
                                 return null;
                               },

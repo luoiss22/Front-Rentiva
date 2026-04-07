@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
 import '../services/api_client.dart';
 import '../services/storage_service.dart';
+import '../providers/auth_provider.dart';
 import '../utils/upper_case_formatter.dart';
 
 // ─── MODELO DATOS FISCALES según Django ──────────────────────────────────────
@@ -225,12 +227,24 @@ class _UserProfileModalState extends State<UserProfileModal> {
       final user = await StorageService.getUser();
       if (user != null && mounted) {
         final parts = (user['nombre'] as String? ?? '').split(' ');
+        final fechaRaw = user['fecha_nacimiento'] as String?;
+        final fechaDisplay = (fechaRaw != null && fechaRaw.isNotEmpty)
+            ? _isoADisplay(fechaRaw)
+            : '';
         setState(() {
-          _userData['nombre']    = parts.isNotEmpty ? parts.first : '';
-          _userData['apellidos'] = parts.length > 1 ? parts.skip(1).join(' ') : '';
-          _userData['cargo']     = user['rol'] ?? 'propietario';
+          _userData['nombre']       = parts.isNotEmpty ? parts.first : '';
+          _userData['apellidos']    = parts.length > 1 ? parts.skip(1).join(' ') : '';
+          _userData['fechaNac']     = fechaDisplay;
+          _userData['claveElector'] = user['folio_ine'] as String? ?? '';
+          _userData['telefono']     = user['telefono']  as String? ?? '';
+          _userData['email']        = user['email']     as String? ?? '';
+          _userData['cargo']        = user['rol'] ?? 'propietario';
           _loadingProfile = false;
         });
+        _fechaNacCtrl.text     = fechaDisplay;
+        _claveElectorCtrl.text = user['folio_ine'] as String? ?? '';
+        _telefonoCtrl.text     = user['telefono']  as String? ?? '';
+        _emailCtrl.text        = user['email']     as String? ?? '';
       } else if (mounted) {
         setState(() => _loadingProfile = false);
       }
@@ -480,7 +494,137 @@ class _UserProfileModalState extends State<UserProfileModal> {
     });
   }
 
+  Future<void> _mostrarCambioPassword() async {
+    final actualCtrl = TextEditingController();
+    final nuevoCtrl  = TextEditingController();
+    final confirCtrl = TextEditingController();
+    bool obscureActual = true;
+    bool obscureNuevo  = true;
+    bool obscureConfir = true;
+    bool enviando      = false;
+    String? errorMsg;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Cambiar contraseña',
+              style: TextStyle(color: Color(0xFF225378), fontWeight: FontWeight.bold, fontSize: 16)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (errorMsg != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Text(errorMsg!, style: const TextStyle(color: Colors.red, fontSize: 12)),
+                  ),
+                _pwField('Contraseña actual', actualCtrl, obscureActual,
+                    () => setD(() => obscureActual = !obscureActual)),
+                const SizedBox(height: 10),
+                _pwField('Nueva contraseña (mín. 8)', nuevoCtrl, obscureNuevo,
+                    () => setD(() => obscureNuevo = !obscureNuevo)),
+                const SizedBox(height: 10),
+                _pwField('Confirmar nueva contraseña', confirCtrl, obscureConfir,
+                    () => setD(() => obscureConfir = !obscureConfir)),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              onPressed: enviando ? null : () async {
+                final actual = actualCtrl.text.trim();
+                final nuevo  = nuevoCtrl.text.trim();
+                final confir = confirCtrl.text.trim();
+                if (actual.isEmpty || nuevo.isEmpty || confir.isEmpty) {
+                  setD(() => errorMsg = 'Completa todos los campos');
+                  return;
+                }
+                if (nuevo.length < 8) {
+                  setD(() => errorMsg = 'La nueva contraseña debe tener al menos 8 caracteres');
+                  return;
+                }
+                if (nuevo != confir) {
+                  setD(() => errorMsg = 'Las contraseñas no coinciden');
+                  return;
+                }
+                setD(() { enviando = true; errorMsg = null; });
+                try {
+                  await ApiClient.post('/auth/cambio-password/', {
+                    'password_actual': actual,
+                    'password_nuevo':  nuevo,
+                  });
+                  if (ctx.mounted) Navigator.pop(ctx);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text('Contraseña actualizada correctamente'),
+                      backgroundColor: Color(0xFF1695A3),
+                      behavior: SnackBarBehavior.floating,
+                    ));
+                  }
+                } on ApiException catch (e) {
+                  setD(() { enviando = false; errorMsg = e.message; });
+                } catch (_) {
+                  setD(() { enviando = false; errorMsg = 'Error de conexión'; });
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1695A3),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                elevation: 0,
+              ),
+              child: enviando
+                  ? const SizedBox(width: 18, height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('Guardar', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      ),
+    );
+    actualCtrl.dispose();
+    nuevoCtrl.dispose();
+    confirCtrl.dispose();
+  }
+
+  static Widget _pwField(String label, TextEditingController ctrl, bool obscure, VoidCallback onToggle) {
+    return TextField(
+      controller: ctrl,
+      obscureText: obscure,
+      style: const TextStyle(fontSize: 13, color: Color(0xFF225378)),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(fontSize: 12, color: Colors.grey),
+        suffixIcon: IconButton(
+          icon: Icon(obscure ? Icons.visibility_off : Icons.visibility,
+              size: 18, color: Colors.grey),
+          onPressed: onToggle,
+        ),
+        filled: true,
+        fillColor: const Color(0xFFF8FAFC),
+        contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(color: Colors.grey.shade200)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(color: Colors.grey.shade200)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: Color(0xFF1695A3), width: 2)),
+      ),
+    );
+  }
+
   void _handleLogout(BuildContext context) {
+    // Capturamos el navigator y el provider ANTES de mostrar el diálogo,
+    // porque después del pop el context del modal puede estar desmontado.
+    final navigator = Navigator.of(context, rootNavigator: true);
+    final authProvider = context.read<AuthProvider>();
+
     showDialog(
       context: context,
       builder: (BuildContext dialogContext) {
@@ -511,14 +655,12 @@ class _UserProfileModalState extends State<UserProfileModal> {
               ),
             ),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.pop(dialogContext);
-                Navigator.pop(context);
-                Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  '/',
-                  (route) => false,
-                );
+                try {
+                  await authProvider.logout();
+                } catch (_) {}
+                navigator.pushNamedAndRemoveUntil('/', (route) => false);
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFEB7F00),
@@ -706,7 +848,35 @@ class _UserProfileModalState extends State<UserProfileModal> {
         _InfoRow(icon: Icons.phone_outlined,     label: 'Teléfono',         value: _userData['telefono']!),
         _InfoRow(icon: Icons.mail_outline,       label: 'Email',            value: _userData['email']!),
         _InfoRow(icon: Icons.badge_outlined,     label: 'Clave de Elector', value: _userData['claveElector']!),
-        _InfoRow(icon: Icons.lock_outline,       label: 'Contraseña',       value: '••••••••'),
+        GestureDetector(
+          onTap: _mostrarCambioPassword,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            margin: const EdgeInsets.only(bottom: 2),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.lock_outline, color: Colors.grey, size: 17),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Contraseña', style: TextStyle(color: Colors.grey, fontSize: 10)),
+                      SizedBox(height: 2),
+                      Text('••••••••', style: TextStyle(color: Color(0xFF225378),
+                          fontWeight: FontWeight.w600, fontSize: 13)),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.edit_outlined, color: Color(0xFF1695A3), size: 15),
+              ],
+            ),
+          ),
+        ),
         const SizedBox(height: 16),
 
         // ── Datos Bancarios (collapsible) ─────────────────────────────────

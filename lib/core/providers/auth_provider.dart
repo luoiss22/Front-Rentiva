@@ -96,6 +96,8 @@ class AuthProvider extends ChangeNotifier {
     required String email,
     required String telefono,
     required String password,
+    String? fechaNacimiento,
+    String? folioIne,
   }) async {
     final result = await AuthService.register(
       nombre: nombre,
@@ -103,6 +105,8 @@ class AuthProvider extends ChangeNotifier {
       email: email,
       telefono: telefono,
       password: password,
+      fechaNacimiento: fechaNacimiento,
+      folioIne: folioIne,
     );
     _usuario = result.usuario;
     _userType = result.userType;

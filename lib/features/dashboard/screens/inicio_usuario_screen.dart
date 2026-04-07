@@ -18,7 +18,7 @@ class _InicioUsuarioScreenState extends State<InicioUsuarioScreen> {
   String _nombre = '';
   bool _loadingStats = true;
   List<_StatData> _stats = [];
-  final List<_ChartData> _chartData = [];
+  List<_ChartData> _chartData = [];
   List<Map<String, dynamic>> _actividad = [];
 
   @override
@@ -37,36 +37,67 @@ class _InicioUsuarioScreenState extends State<InicioUsuarioScreen> {
     if (mounted) setState(() => _nombre = user?['nombre'] ?? '');
 
     try {
-      final propiedades = await ApiClient.get('/propiedades/');
-      final totalPropiedades = propiedades is List
-          ? propiedades.length
-          : (propiedades['count'] ?? 0);
+      final anioActual = DateTime.now().year;
 
-      final arrendatarios = await ApiClient.get('/arrendatarios/?estado=activo');
-      final totalArrendatarios = arrendatarios is List
-          ? arrendatarios.length
-          : (arrendatarios['count'] ?? 0);
+      // Todas las llamadas en paralelo
+      final resultados = await Future.wait([
+        ApiClient.get('/propiedades/'),
+        ApiClient.get('/arrendatarios/?estado=activo'),
+        ApiClient.get('/pagos/?estado=pendiente'),
+        ApiClient.get('/pagos/?ordering=-fecha_limite&page_size=3'),
+        ApiClient.get('/pagos/?estado=pagado&page_size=200'),
+      ]);
 
-      final pagos = await ApiClient.get('/pagos/?estado=pendiente');
-      final listaPagos = pagos is List ? pagos : (pagos['results'] ?? []);
+      final propiedades       = resultados[0];
+      final arrendatarios     = resultados[1];
+      final pagosP            = resultados[2];
+      final pagosRecientes    = resultados[3];
+      final pagadosData       = resultados[4];
+
+      final totalPropiedades   = propiedades is List  ? propiedades.length  : (propiedades['count']  ?? 0);
+      final totalArrendatarios = arrendatarios is List ? arrendatarios.length : (arrendatarios['count'] ?? 0);
+
+      final listaPagos = pagosP is List ? pagosP : (pagosP['results'] ?? []);
       final totalPendiente = (listaPagos as List).fold<double>(
-        0,
-        (sum, p) => sum + (double.tryParse(p['monto'].toString()) ?? 0),
+        0, (s, p) => s + (double.tryParse(p['monto'].toString()) ?? 0),
       );
 
-      // El back ordena por fecha_limite desc y devuelve resultados paginados
-      final pagosRecientes = await ApiClient.get('/pagos/?ordering=-fecha_limite&page_size=3');
       final listaReciente = pagosRecientes is List
           ? pagosRecientes
           : (pagosRecientes['results'] ?? []);
 
+      // Agrupar pagos pagados por mes del año actual
+      final listaPagados = pagadosData is List
+          ? pagadosData
+          : (pagadosData['results'] as List? ?? []);
+
+      final mesesLabel = ['Ene','Feb','Mar','Abr','May','Jun',
+                          'Jul','Ago','Sep','Oct','Nov','Dic'];
+      final totalesMes = List<double>.filled(12, 0);
+
+      for (final p in listaPagados) {
+        final fechaStr = p['fecha_pago'] as String?;
+        if (fechaStr == null || fechaStr.isEmpty) continue;
+        final fecha = DateTime.tryParse(fechaStr);
+        if (fecha == null || fecha.year != anioActual) continue;
+        totalesMes[fecha.month - 1] += double.tryParse(p['monto'].toString()) ?? 0;
+      }
+
+      // Solo incluir meses hasta el actual para que la gráfica no muestre zeros futuros
+      final mesActual = DateTime.now().month;
+      final chart = <_ChartData>[];
+      for (int i = 0; i < mesActual; i++) {
+        chart.add(_ChartData(mesesLabel[i], totalesMes[i]));
+      }
+
       if (!mounted) return;
       setState(() {
         _stats = [
-          _StatData(name: 'Propiedades', value: '$totalPropiedades', icon: Icons.home_outlined, isIncrease: true),
+          _StatData(name: 'Propiedades', value: '$totalPropiedades',  icon: Icons.home_outlined,  isIncrease: true),
           _StatData(name: 'Inquilinos',  value: '$totalArrendatarios', icon: Icons.people_outline, isIncrease: true),
           _StatData(name: 'Pendientes',  value: '\$${totalPendiente.toStringAsFixed(0)}', icon: Icons.access_time, isIncrease: false),
         ];
+        _chartData = chart;
         _actividad = List<Map<String, dynamic>>.from(listaReciente);
         _loadingStats = false;
       });
@@ -94,10 +125,10 @@ class _InicioUsuarioScreenState extends State<InicioUsuarioScreen> {
                   ? const Center(child: CircularProgressIndicator())
                   : _StatsGrid(stats: _stats),
               const SizedBox(height: 20),
-              _chartData.isEmpty
-                  ? const SizedBox()
-                  : _RevenueChart(chartData: _chartData),
-              const SizedBox(height: 20),
+              if (_chartData.isNotEmpty) ...[
+                _RevenueChart(chartData: _chartData),
+                const SizedBox(height: 20),
+              ],
               _RecentActivity(actividad: _actividad),
             ],
           ),
@@ -266,6 +297,11 @@ class _RevenueChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Escala dinámica: dividir entre un divisor que haga los valores manejables
+    final maxVal = chartData.fold<double>(0, (m, d) => d.value > m ? d.value : m);
+    final divisor = maxVal > 100000 ? 1000.0 : maxVal > 1000 ? 100.0 : 1.0;
+    final sufijo  = divisor == 1000.0 ? 'k' : divisor == 100.0 ? 'c' : '';
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -284,8 +320,10 @@ class _RevenueChart extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(8)),
-                child: const Text('Este Año',
-                    style: TextStyle(color: Color(0xFF1695A3), fontSize: 11, fontWeight: FontWeight.bold)),
+                child: Text(
+                  '${DateTime.now().year}',
+                  style: const TextStyle(color: Color(0xFF1695A3), fontSize: 11, fontWeight: FontWeight.bold),
+                ),
               ),
             ],
           ),
@@ -299,9 +337,18 @@ class _RevenueChart extends StatelessWidget {
                 getDrawingHorizontalLine: (_) => FlLine(color: Colors.grey.shade100, strokeWidth: 1),
               ),
               titlesData: FlTitlesData(
-                leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 40,
+                    getTitlesWidget: (value, meta) => Text(
+                      '${value.toStringAsFixed(0)}$sufijo',
+                      style: const TextStyle(fontSize: 9, color: Colors.grey),
+                    ),
+                  ),
+                ),
+                rightTitles:  const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                topTitles:    const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                 bottomTitles: AxisTitles(
                   sideTitles: SideTitles(
                     showTitles: true,
@@ -309,7 +356,11 @@ class _RevenueChart extends StatelessWidget {
                     getTitlesWidget: (value, meta) {
                       final index = value.toInt();
                       if (index < 0 || index >= chartData.length) return const SizedBox();
-                      return Text(chartData[index].name, style: const TextStyle(fontSize: 10, color: Colors.grey));
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(chartData[index].name,
+                            style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                      );
                     },
                   ),
                 ),
@@ -318,16 +369,26 @@ class _RevenueChart extends StatelessWidget {
               lineBarsData: [
                 LineChartBarData(
                   spots: chartData.asMap().entries
-                      .map((e) => FlSpot(e.key.toDouble(), e.value.value / 1000))
+                      .map((e) => FlSpot(e.key.toDouble(), e.value.value / divisor))
                       .toList(),
                   isCurved: true,
                   color: const Color(0xFF1695A3),
                   barWidth: 3,
-                  dotData: const FlDotData(show: false),
+                  dotData: FlDotData(
+                    show: true,
+                    getDotPainter: (spot, _, __, ___) => FlDotCirclePainter(
+                      radius: 3,
+                      color: const Color(0xFF1695A3),
+                      strokeWidth: 0,
+                    ),
+                  ),
                   belowBarData: BarAreaData(
                     show: true,
                     gradient: LinearGradient(
-                      colors: [const Color(0xFF1695A3).withOpacity(0.3), const Color(0xFF1695A3).withOpacity(0.0)],
+                      colors: [
+                        const Color(0xFF1695A3).withOpacity(0.25),
+                        const Color(0xFF1695A3).withOpacity(0.0),
+                      ],
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                     ),

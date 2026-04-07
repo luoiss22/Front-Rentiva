@@ -7,6 +7,7 @@ class NotificacionItem {
   final int contratoId;
   final String tipo;
   final String titulo;
+  final String mensaje;
   final String fechaProgramada;
   final String medio;
   final bool leida;
@@ -16,6 +17,7 @@ class NotificacionItem {
     required this.contratoId,
     required this.tipo,
     required this.titulo,
+    required this.mensaje,
     required this.fechaProgramada,
     required this.medio,
     this.leida = false,
@@ -23,13 +25,14 @@ class NotificacionItem {
 
   factory NotificacionItem.fromJson(Map<String, dynamic> json) {
     return NotificacionItem(
-      id: json['id'] as int,
-      contratoId: json['contrato'] as int,
-      tipo: json['tipo'] ?? 'general',
-      titulo: json['titulo'] ?? '',
+      id:              json['id'] as int,
+      contratoId:      json['contrato'] as int,
+      tipo:            json['tipo'] ?? 'general',
+      titulo:          json['titulo'] ?? '',
+      mensaje:         json['mensaje'] ?? '',
       fechaProgramada: json['fecha_programada'] ?? '',
-      medio: json['medio'] ?? 'email',
-      leida: json['leida'] ?? false,
+      medio:           json['medio'] ?? 'email',
+      leida:           json['leida'] ?? false,
     );
   }
 }

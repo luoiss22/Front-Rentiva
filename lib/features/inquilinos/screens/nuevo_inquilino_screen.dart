@@ -249,18 +249,14 @@ class _NuevoInquilinoScreenState extends State<NuevoInquilinoScreen> {
 
       // 1.1 Subir foto del inquilino (opcional)
       if (_imageFile != null || _webImage != null) {
-        try {
-          await ApiClient.multipart(
-            'PATCH',
-            '/arrendatarios/${arrendatario.id}/',
-            file: _imageFile,
-            webFileBytes: _webImage,
-            webFileName: 'inquilino.jpg',
-            fileField: 'foto',
-          );
-        } catch (e) {
-          debugPrint("Error subiendo foto de inquilino: $e");
-        }
+        await ApiClient.multipart(
+          'PATCH',
+          '/arrendatarios/${arrendatario.id}/',
+          file: _imageFile,
+          webFileBytes: _webImage,
+          webFileName: 'inquilino.jpg',
+          fileField: 'foto',
+        );
       }
 
       // 1.5. Crear Datos Fiscales si aplican
@@ -426,7 +422,9 @@ class _NuevoInquilinoScreenState extends State<NuevoInquilinoScreen> {
                   LengthLimitingTextInputFormatter(20),
                 ],
                 validator: (v) {
-                  if (v != null && v.isNotEmpty && v.length < 18) return 'Mínimo 18 caracteres';
+                  if (v != null && v.isNotEmpty && v.length < 18) {
+                    return 'Mínimo 18 caracteres';
+                  }
                   return null;
                 },
               ),

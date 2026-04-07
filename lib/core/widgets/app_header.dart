@@ -7,12 +7,14 @@ class AppHeader extends StatefulWidget implements PreferredSizeWidget {
   final String title;
   final bool showBack;
   final String userInitials;
+  final List<Widget>? actions;
 
   const AppHeader({
     super.key,
     required this.title,
     this.showBack = false,
     this.userInitials = 'JS',
+    this.actions,
   });
 
   @override
@@ -93,6 +95,7 @@ class _AppHeaderState extends State<AppHeader> {
         ],
       ),
       actions: [
+        if (widget.actions != null) ...widget.actions!,
         if (!widget.showBack) ...[
 
           // Botón Notificaciones con punto naranja

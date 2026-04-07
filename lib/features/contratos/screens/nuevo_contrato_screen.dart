@@ -32,7 +32,7 @@ class _NuevoContratoScreenState extends State<NuevoContratoScreen> {
   final _depositoCtrl   = TextEditingController();
   final _notasCtrl      = TextEditingController();
 
-  static const _periodos = ['mensual', 'quincenal', 'semanal', 'anual'];
+  static const _periodos = ['diario', 'mensual', 'anual'];
 
   String _mensajeErrorContrato(String raw) {
     final m = raw.toLowerCase();

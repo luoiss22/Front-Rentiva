@@ -7,6 +7,8 @@ class AdminModel {
   final String telefono;
   final String estado;
   final String? foto;
+  final String? fechaNacimiento;
+  final String? folioIne;
 
   const AdminModel({
     required this.id,
@@ -16,17 +18,21 @@ class AdminModel {
     required this.telefono,
     required this.estado,
     this.foto,
+    this.fechaNacimiento,
+    this.folioIne,
   });
 
   factory AdminModel.fromJson(Map<String, dynamic> json) {
     return AdminModel(
-      id:        json['id'] as int,
-      nombre:    json['nombre']    ?? '',
-      apellidos: json['apellidos'] ?? '',
-      email:     json['email']     ?? '',
-      telefono:  json['telefono']  ?? '',
-      estado:    json['estado']    ?? 'activo',
-      foto:      json['foto'] as String?,
+      id:               json['id'] as int,
+      nombre:           json['nombre']           ?? '',
+      apellidos:        json['apellidos']         ?? '',
+      email:            json['email']             ?? '',
+      telefono:         json['telefono']          ?? '',
+      estado:           json['estado']            ?? 'activo',
+      foto:             json['foto'] as String?,
+      fechaNacimiento:  json['fecha_nacimiento']  as String?,
+      folioIne:         json['folio_ine']         as String?,
     );
   }
 

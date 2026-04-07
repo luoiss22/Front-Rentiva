@@ -56,6 +56,7 @@ class _EditarPropiedadScreenState extends State<EditarPropiedadScreen> {
   ];
 
   bool _loadingData = true;
+  bool _isLoading   = false;
   String? _loadError;
 
   @override
@@ -119,6 +120,8 @@ class _EditarPropiedadScreenState extends State<EditarPropiedadScreen> {
 
   void _onSubmit() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
 
     final fields = {
       'nombre':            _nombreCtrl.text,
@@ -135,7 +138,6 @@ class _EditarPropiedadScreenState extends State<EditarPropiedadScreen> {
 
     try {
       if (_imagenCambiada && (_imageFile != null || _webImage != null)) {
-        // Subir con multipart para incluir la imagen nueva
         await ApiClient.multipart(
           'PATCH',
           '/propiedades/${widget.propiedadId}/',
@@ -145,7 +147,6 @@ class _EditarPropiedadScreenState extends State<EditarPropiedadScreen> {
           fileField: 'imagen',
         );
       } else {
-        // Solo texto — patch normal
         await ApiClient.patch('/propiedades/${widget.propiedadId}/', fields);
       }
       if (!mounted) return;
@@ -167,6 +168,8 @@ class _EditarPropiedadScreenState extends State<EditarPropiedadScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Error al guardar'), backgroundColor: Colors.red, behavior: SnackBarBehavior.floating),
       );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -433,12 +436,13 @@ class _EditarPropiedadScreenState extends State<EditarPropiedadScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: _onSubmit,
-                  icon: const Icon(Icons.save_outlined, size: 20),
+                  onPressed: _isLoading ? null : _onSubmit,
+                  icon: _isLoading
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.save_outlined, size: 20),
                   label: const Text(
                     'Guardar Cambios',
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 16),
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF225378),

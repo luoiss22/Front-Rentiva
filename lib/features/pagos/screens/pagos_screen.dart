@@ -30,10 +30,19 @@ class _PagosScreenState extends State<PagosScreen> {
   Future<void> _cargarPagos() async {
     setState(() { _loading = true; _error = null; });
     try {
-      final data = await ApiClient.get('/pagos/');
-      final results = data['results'] as List;
+      // Cargamos todas las páginas para que los totales sean correctos
+      final List<Pago> todos = [];
+      int page = 1;
+      while (true) {
+        final data = await ApiClient.get('/pagos/?page=$page&page_size=100');
+        final results = data['results'] as List;
+        todos.addAll(results.map((e) => Pago.fromJson(e)));
+        // Si no hay siguiente página, salimos
+        if (data['next'] == null) break;
+        page++;
+      }
       setState(() {
-        _pagos = results.map((e) => Pago.fromJson(e)).toList();
+        _pagos = todos;
         _loading = false;
       });
     } on ApiException catch (e) {

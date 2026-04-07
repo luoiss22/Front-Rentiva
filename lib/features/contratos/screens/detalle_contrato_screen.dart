@@ -82,9 +82,78 @@ class _DetalleContratoScreenState extends State<DetalleContratoScreen> {
     }
   }
 
+  Future<void> _cancelarContrato() async {
+    final estadoActual = (_contrato?['estado'] ?? '').toString();
+    if (estadoActual == 'cancelado' || estadoActual == 'finalizado') {
+      return;
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16)),
+        title: const Text('Cancelar contrato',
+            style: TextStyle(
+                color: Color(0xFF225378),
+                fontWeight: FontWeight.bold)),
+        content: const Text(
+          'El contrato se marcará como cancelado y la propiedad quedará disponible si no hay otro contrato activo.',
+          style: TextStyle(color: Colors.grey, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('No', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEB7F00),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Sí, cancelar',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      final actualizado = await ContratosService.actualizar(
+        widget.contratoId!,
+        {'estado': 'cancelado'},
+      );
+      if (!mounted) return;
+      setState(() {
+        _contrato = actualizado;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Contrato cancelado correctamente'),
+          backgroundColor: Color(0xFF1695A3),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating),
+      );
+    }
+  }
+
   Color _colorEstado(String estado) {
     switch (estado) {
       case 'activo':    return const Color(0xFF1695A3);
+      case 'finalizado': return Colors.blueGrey;
+      case 'renovado':   return const Color(0xFF225378);
       case 'vencido':   return Colors.red;
       case 'cancelado': return Colors.grey;
       default:          return const Color(0xFFEB7F00);
@@ -175,6 +244,23 @@ class _DetalleContratoScreenState extends State<DetalleContratoScreen> {
           // Botones de acción
           Row(
             children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: (estado == 'cancelado' || estado == 'finalizado')
+                      ? null
+                      : _cancelarContrato,
+                  icon: const Icon(Icons.block_outlined, size: 18),
+                  label: const Text('Cancelar'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFEB7F00),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
               // Eliminar
               Expanded(
                 child: OutlinedButton.icon(

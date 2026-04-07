@@ -385,9 +385,7 @@ class _EditarInquilinoScreenState extends State<EditarInquilinoScreen> {
           webFileName: 'inquilino.jpg',
           fileField: 'foto',
         );
-      }
-
-      // 1.5. Guardar datos fiscales
+      }      // 1.5. Guardar datos fiscales
       final fiscalBody = {
         'tipo_entidad': 'arrendatario',
         'entidad_id': widget.arrendatarioId,

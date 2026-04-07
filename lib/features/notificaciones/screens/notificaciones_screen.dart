@@ -57,20 +57,20 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
       setState(() {
         _notifications = items.map((item) {
           return Notificacion(
-            id: item.id,
-            tipo: NotifTipo.values.firstWhere(
+            id:               item.id,
+            tipo:             NotifTipo.values.firstWhere(
               (e) => e.name == item.tipo,
               orElse: () => NotifTipo.general,
             ),
-            titulo: item.titulo,
-            mensaje: '',
-            fechaProgramada: DateTime.tryParse(item.fechaProgramada) ?? DateTime.now(),
-            medio: NotifMedio.values.firstWhere(
+            titulo:           item.titulo,
+            mensaje:          item.mensaje,
+            fechaProgramada:  DateTime.tryParse(item.fechaProgramada) ?? DateTime.now(),
+            medio:            NotifMedio.values.firstWhere(
               (e) => e.name == item.medio,
               orElse: () => NotifMedio.email,
             ),
-            createdAt: DateTime.tryParse(item.fechaProgramada) ?? DateTime.now(),
-            read: item.leida,
+            createdAt:        DateTime.tryParse(item.fechaProgramada) ?? DateTime.now(),
+            read:             item.leida,
           );
         }).toList();
         _loading = false;
@@ -331,28 +331,46 @@ class _NotifCard extends StatelessWidget {
                   // ← Original content
                   Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(10, 14, 10, 14),
-                      child: Row(
+                      padding: const EdgeInsets.fromLTRB(10, 12, 10, 12),
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: Text(
-                              notif.titulo,
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  notif.titulo,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                    color: notif.read
+                                        ? Colors.grey.shade600
+                                        : const Color(0xFF225378),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                tiempo,
+                                style: const TextStyle(
+                                    fontSize: 10, color: Colors.grey),
+                              ),
+                            ],
+                          ),
+                          if (notif.mensaje.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              notif.mensaje,
                               style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
+                                fontSize: 11,
                                 color: notif.read
-                                    ? Colors.grey.shade600
-                                    : const Color(0xFF225378),
+                                    ? Colors.grey.shade400
+                                    : Colors.grey.shade600,
+                                height: 1.4,
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            tiempo,
-                            style: const TextStyle(
-                                fontSize: 10, color: Colors.grey),
-                          ),
+                          ],
                         ],
                       ),
                     ),

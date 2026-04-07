@@ -1,3 +1,6 @@
+import 'dart:io';
+import 'dart:typed_data';
+
 import '../../core/services/api_client.dart';
 
 // ── Modelos ────────────────────────────────────────────────────────────────────
@@ -8,12 +11,14 @@ class MobiliarioItem {
   final String nombre;
   final String tipo;
   final String? descripcion;
+  final String? fotoUrl;
 
   const MobiliarioItem({
     required this.id,
     required this.nombre,
     required this.tipo,
     this.descripcion,
+    this.fotoUrl,
   });
 
   factory MobiliarioItem.fromJson(Map<String, dynamic> json) {
@@ -22,6 +27,7 @@ class MobiliarioItem {
       nombre:      json['nombre'] ?? '',
       tipo:        json['tipo'] ?? '',
       descripcion: json['descripcion'] as String?,
+      fotoUrl:     ApiClient.resolveMediaUrl(json['foto'] as String?),
     );
   }
 }
@@ -93,6 +99,71 @@ class MobiliarioService {
   static Future<MobiliarioItem> crear(Map<String, dynamic> body) async {
     final data = await ApiClient.post('/mobiliario/', body);
     return MobiliarioItem.fromJson(data);
+  }
+
+  /// POST /mobiliario/ (multipart, con foto)
+  static Future<MobiliarioItem> crearConFoto({
+    required String nombre,
+    required String tipo,
+    String? descripcion,
+    File? file,
+    Uint8List? webFileBytes,
+    String? webFileName,
+  }) async {
+    final fields = <String, String>{
+      'nombre': nombre,
+      'tipo': tipo,
+    };
+    if (descripcion != null && descripcion.trim().isNotEmpty) {
+      fields['descripcion'] = descripcion;
+    }
+
+    final data = await ApiClient.multipart(
+      'POST',
+      '/mobiliario/',
+      fields: fields,
+      file: file,
+      webFileBytes: webFileBytes,
+      webFileName: webFileName,
+      fileField: 'foto',
+    );
+    return MobiliarioItem.fromJson(data as Map<String, dynamic>);
+  }
+
+  /// PATCH /mobiliario/{id}/
+  static Future<MobiliarioItem> actualizar(int id, Map<String, dynamic> body) async {
+    final data = await ApiClient.patch('/mobiliario/$id/', body);
+    return MobiliarioItem.fromJson(data);
+  }
+
+  /// PATCH /mobiliario/{id}/ (multipart, permite actualizar foto)
+  static Future<MobiliarioItem> actualizarConFoto(
+    int id, {
+    required String nombre,
+    required String tipo,
+    String? descripcion,
+    File? file,
+    Uint8List? webFileBytes,
+    String? webFileName,
+  }) async {
+    final fields = <String, String>{
+      'nombre': nombre,
+      'tipo': tipo,
+    };
+    if (descripcion != null && descripcion.trim().isNotEmpty) {
+      fields['descripcion'] = descripcion;
+    }
+
+    final data = await ApiClient.multipart(
+      'PATCH',
+      '/mobiliario/$id/',
+      fields: fields,
+      file: file,
+      webFileBytes: webFileBytes,
+      webFileName: webFileName,
+      fileField: 'foto',
+    );
+    return MobiliarioItem.fromJson(data as Map<String, dynamic>);
   }
 }
 

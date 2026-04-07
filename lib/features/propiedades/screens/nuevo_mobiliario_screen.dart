@@ -84,11 +84,21 @@ class _NuevoMobiliarioScreenState extends State<NuevoMobiliarioScreen> {
 
       try {
         // 1) Crear el artículo en el catálogo de mobiliario
-        final mob = await MobiliarioService.crear({
-          'nombre':      _nombreCtrl.text,
-          'tipo':        _tipoCtrl.text,
-          'descripcion': _descripcionCtrl.text,
-        });
+        final hasImage = _imageFile != null || _webImage != null;
+        final mob = hasImage
+            ? await MobiliarioService.crearConFoto(
+                nombre: _nombreCtrl.text,
+                tipo: _tipoCtrl.text,
+                descripcion: _descripcionCtrl.text,
+                file: _imageFile,
+                webFileBytes: _webImage,
+                webFileName: 'mobiliario.jpg',
+              )
+            : await MobiliarioService.crear({
+                'nombre':      _nombreCtrl.text,
+                'tipo':        _tipoCtrl.text,
+                'descripcion': _descripcionCtrl.text,
+              });
 
         // 2) Asociarlo a la propiedad
         await PropiedadMobiliarioService.crear({
@@ -112,9 +122,15 @@ class _NuevoMobiliarioScreenState extends State<NuevoMobiliarioScreen> {
         Navigator.pop(context, true);
       } catch (e) {
         if (!mounted) return;
+        String mensaje = e.toString();
+        if (mensaje.toLowerCase().contains('unique') ||
+            mensaje.toLowerCase().contains('ya existe') ||
+            mensaje.toLowerCase().contains('already exists')) {
+          mensaje = 'Este artículo ya está registrado en la propiedad. Edítalo desde el inventario.';
+        }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: $e'),
+            content: Text(mensaje),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),

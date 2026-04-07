@@ -1,9 +1,11 @@
+// ignore_for_file: use_build_context_synchronously
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../../core/widgets/app_header.dart';
 import '../../../core/services/api_client.dart';
 import '../../../data/services/arrendatarios_service.dart';
+// ignore_for_file: use_build_context_synchronously
 import '../../propiedades/widgets/contrato_pdf.dart';
 import '../../pagos/widgets/pago_models.dart';
 import '../../pagos/widgets/pago_tile.dart';
@@ -58,6 +60,53 @@ class _InformacionInquilinoScreenState
     }
   }
 
+  Future<void> _eliminar() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Eliminar inquilino',
+            style: TextStyle(color: Color(0xFF225378), fontWeight: FontWeight.bold)),
+        content: const Text(
+          'Esta acción no se puede deshacer. Se eliminará el inquilino y todos sus datos.',
+          style: TextStyle(color: Colors.grey, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Eliminar', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    try {
+      await ArrendatariosService.eliminar(widget.arrendatarioId!);
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message),
+            backgroundColor: Colors.red, behavior: SnackBarBehavior.floating),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo eliminar el inquilino'),
+            backgroundColor: Colors.red, behavior: SnackBarBehavior.floating),
+      );
+    }
+  }
 
   Future<void> _llamar() async {
     final numero = (_inquilino?.telefono ?? '').replaceAll(RegExp(r'\s+'), '');
@@ -120,7 +169,17 @@ class _InformacionInquilinoScreenState
     final inq = _inquilino!;
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
-      appBar: const AppHeader(title: 'Detalle Inquilino', showBack: true),
+      appBar: AppHeader(
+        title: 'Detalle Inquilino',
+        showBack: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_outline, color: Colors.red),
+            tooltip: 'Eliminar inquilino',
+            onPressed: _eliminar,
+          ),
+        ],
+      ),
       body: NestedScrollView(
         headerSliverBuilder: (context, _) => [
           SliverToBoxAdapter(

@@ -53,8 +53,18 @@ class ApiClient {
   // ── Parsear respuesta ────────────────────────────────────────
   static dynamic _parse(http.Response response) {
     final body = utf8.decode(response.bodyBytes);
-    final data = jsonDecode(body);
-    if (response.statusCode >= 200 && response.statusCode < 300) return data;
+    dynamic data;
+    if (body.trim().isNotEmpty) {
+      try {
+        data = jsonDecode(body);
+      } catch (_) {
+        data = body;
+      }
+    }
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return data;
+    }
 
     String msg = 'Error desconocido';
     if (data is Map) {
@@ -66,6 +76,8 @@ class ApiClient {
           return v is List ? v.join(', ') : v.toString();
         }).join(' | ');
       }
+    } else if (data is String && data.trim().isNotEmpty) {
+      msg = data;
     }
     throw ApiException(response.statusCode, msg);
   }
@@ -151,6 +163,29 @@ class ApiClient {
     String fileField = 'foto',
     bool auth = true,
   }) async {
+    return _multipartOnce(
+      method, path,
+      fields: fields,
+      file: file,
+      webFileBytes: webFileBytes,
+      webFileName: webFileName,
+      fileField: fileField,
+      auth: auth,
+      retried: false,
+    );
+  }
+
+  static Future<dynamic> _multipartOnce(
+    String method,
+    String path, {
+    Map<String, String>? fields,
+    File? file,
+    Uint8List? webFileBytes,
+    String? webFileName,
+    String fileField = 'foto',
+    bool auth = true,
+    required bool retried,
+  }) async {
     final uri = Uri.parse('$baseUrl$path');
     final request = http.MultipartRequest(method.toUpperCase(), uri);
 
@@ -183,6 +218,24 @@ class ApiClient {
 
     final streamed = await request.send();
     final res = await http.Response.fromStream(streamed);
+
+    // Si es 401 y aún no hemos reintentado, hacer refresh y reintentar una vez
+    if (res.statusCode == 401 && auth && !retried && !_isRefreshing) {
+      final refreshed = await refreshToken();
+      if (refreshed) {
+        return _multipartOnce(
+          method, path,
+          fields: fields,
+          file: file,
+          webFileBytes: webFileBytes,
+          webFileName: webFileName,
+          fileField: fileField,
+          auth: auth,
+          retried: true,
+        );
+      }
+    }
+
     return _parse(res);
   }
 

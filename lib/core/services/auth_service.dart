@@ -47,16 +47,26 @@ class AuthService {
     required String email,
     required String telefono,
     required String password,
+    String? fechaNacimiento,
+    String? folioIne,
   }) async {
+    final payload = <String, dynamic>{
+      'nombre': nombre,
+      'apellidos': apellidos,
+      'email': email,
+      'telefono': telefono,
+      'password': password,
+    };
+    if (fechaNacimiento != null && fechaNacimiento.isNotEmpty) {
+      payload['fecha_nacimiento'] = fechaNacimiento;
+    }
+    if (folioIne != null && folioIne.isNotEmpty) {
+      payload['folio_ine'] = folioIne;
+    }
+
     final data = await ApiClient.post(
       '/auth/registro/',
-      {
-        'nombre': nombre,
-        'apellidos': apellidos,
-        'email': email,
-        'telefono': telefono,
-        'password': password,
-      },
+      payload,
       auth: false,
     );
     return _processAuthResponse(data);
@@ -112,11 +122,15 @@ class AuthService {
 
     await StorageService.saveTokens(access: access, refresh: refresh);
     await StorageService.saveUser(
-      id: userData['id'] as int,
-      rol: userType,
-      nombre: userType == 'admin'
+      id:              userData['id'] as int,
+      rol:             userType,
+      nombre:          userType == 'admin'
           ? (usuario as AdminModel).nombreCompleto
           : (usuario as PropietarioModel).nombreCompleto,
+      fechaNacimiento: userData['fecha_nacimiento'] as String?,
+      folioIne:        userData['folio_ine'] as String?,
+      email:           userData['email'] as String?,
+      telefono:        userData['telefono'] as String?,
     );
 
     return AuthResult(

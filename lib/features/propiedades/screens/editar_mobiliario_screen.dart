@@ -31,6 +31,10 @@ class _EditarMobiliarioScreenState extends State<EditarMobiliarioScreen> {
   // Imagen
   File? _imageFile;
   Uint8List? _webImage;
+  String? _fotoActualUrl;
+  bool _imagenCambiada = false;
+
+  int? _mobiliarioId;
 
   // Controladores
   late TextEditingController _nombreCtrl;
@@ -71,6 +75,8 @@ class _EditarMobiliarioScreenState extends State<EditarMobiliarioScreen> {
         _nombreCtrl.text       = mob.nombre;
         _tipoCtrl.text         = mob.tipo;
         _descripcionCtrl.text  = mob.descripcion ?? '';
+        _mobiliarioId          = mob.id;
+        _fotoActualUrl         = mob.fotoUrl;
         _cantidadCtrl.text     = pm.cantidad.toString();
         _valorEstimadoCtrl.text =
             pm.valorEstimado?.toString() ?? '';
@@ -106,9 +112,15 @@ class _EditarMobiliarioScreenState extends State<EditarMobiliarioScreen> {
     if (image == null) return;
     if (kIsWeb) {
       final bytes = await image.readAsBytes();
-      setState(() { _webImage = bytes; });
+      setState(() {
+        _webImage = bytes;
+        _imagenCambiada = true;
+      });
     } else {
-      setState(() { _imageFile = File(image.path); });
+      setState(() {
+        _imageFile = File(image.path);
+        _imagenCambiada = true;
+      });
     }
   }
 
@@ -126,6 +138,31 @@ class _EditarMobiliarioScreenState extends State<EditarMobiliarioScreen> {
       }
 
       try {
+        if (_mobiliarioId == null) {
+          throw Exception('No se encontró el ID del mobiliario.');
+        }
+
+        if (_imagenCambiada) {
+          await MobiliarioService.actualizarConFoto(
+            _mobiliarioId!,
+            nombre: _nombreCtrl.text,
+            tipo: _tipoCtrl.text,
+            descripcion: _descripcionCtrl.text,
+            file: _imageFile,
+            webFileBytes: _webImage,
+            webFileName: 'mobiliario.jpg',
+          );
+        } else {
+          await MobiliarioService.actualizar(
+            _mobiliarioId!,
+            {
+              'nombre': _nombreCtrl.text,
+              'tipo': _tipoCtrl.text,
+              'descripcion': _descripcionCtrl.text,
+            },
+          );
+        }
+
         // Actualizar la relación propiedad-mobiliario
         await PropiedadMobiliarioService.actualizar(
           widget.propiedadMobiliarioId!,
@@ -483,6 +520,7 @@ class _EditarMobiliarioScreenState extends State<EditarMobiliarioScreen> {
   // ── IMAGE PICKER ──────────────────────────────────────────────────────────
   Widget _buildImagePicker() {
     final hasNewImage = _webImage != null || _imageFile != null;
+    final hasCurrentImage = (_fotoActualUrl ?? '').isNotEmpty;
 
     return GestureDetector(
       onTap: _pickImage,
@@ -506,6 +544,16 @@ class _EditarMobiliarioScreenState extends State<EditarMobiliarioScreen> {
                     : Image.file(_imageFile!, fit: BoxFit.cover,
                         width: double.infinity),
               )
+            : hasCurrentImage
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(13),
+                    child: Image.network(
+                      _fotoActualUrl!,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      errorBuilder: (_, __, ___) => _imagePlaceholder(),
+                    ),
+                  )
             : _imagePlaceholder(),
       ),
     );

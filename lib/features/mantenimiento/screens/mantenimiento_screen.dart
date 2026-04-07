@@ -212,6 +212,8 @@ class _MantenimientoScreenState extends State<MantenimientoScreen> {
   String _filtro = 'todos';
 
   List<ReporteResumen> _reportes = [];
+  // Conteos totales por estado — se llenan con una carga sin filtro al inicio
+  Map<String, int> _conteosPorEstado = {};
   bool _loading = true;
   bool _cargandoMas = false;
   bool _hayMas = false;
@@ -270,23 +272,35 @@ class _MantenimientoScreenState extends State<MantenimientoScreen> {
     try {
       final futures = await Future.wait([
         ApiClient.get('/propiedades/'),
+        ReportesMantenimientoService.listar(
+          page: 1,
+          estado: _filtro == 'todos' ? null : _filtro,
+        ),
+        // Siempre cargamos totales sin filtro para los stat cards
         ReportesMantenimientoService.listar(page: 1),
       ]);
 
-      final propData = futures[0] as Map<String, dynamic>;
-      final paginado = futures[1] as PaginatedReportes;
+      final propData  = futures[0] as Map<String, dynamic>;
+      final paginado  = futures[1] as PaginatedReportes;
+      final sinFiltro = futures[2] as PaginatedReportes;
 
-      final propResults = propData['results'] as List;
       final propMap = <int, String>{};
-      for (final p in propResults) {
+      for (final p in (propData['results'] as List)) {
         propMap[p['id'] as int] = p['nombre'] ?? 'Propiedad #${p['id']}';
       }
 
+      // Contamos por estado en la carga sin filtro
+      final conteos = <String, int>{};
+      for (final r in sinFiltro.items) {
+        conteos[r.estado] = (conteos[r.estado] ?? 0) + 1;
+      }
+
       setState(() {
-        _propMap = propMap;
-        _reportes = _itemsDesdeApi(paginado.items);
-        _hayMas = paginado.hayMas;
-        _loading = false;
+        _propMap            = propMap;
+        _reportes           = _itemsDesdeApi(paginado.items);
+        _hayMas             = paginado.hayMas;
+        _conteosPorEstado   = conteos;
+        _loading            = false;
       });
     } on ApiException catch (e) {
       setState(() { _error = e.message; _loading = false; });
@@ -301,7 +315,10 @@ class _MantenimientoScreenState extends State<MantenimientoScreen> {
     setState(() => _cargandoMas = true);
     try {
       final siguientePagina = _paginaActual + 1;
-      final paginado = await ReportesMantenimientoService.listar(page: siguientePagina);
+      final paginado = await ReportesMantenimientoService.listar(
+        page: siguientePagina,
+        estado: _filtro == 'todos' ? null : _filtro,
+      );
       setState(() {
         _reportes.addAll(_itemsDesdeApi(paginado.items));
         _hayMas = paginado.hayMas;
@@ -327,13 +344,9 @@ class _MantenimientoScreenState extends State<MantenimientoScreen> {
     if (index != _navIndex) Navigator.pushNamed(context, routes[index]);
   }
 
-  List<ReporteResumen> get _filtrados {
-    if (_filtro == 'todos') return _reportes;
-    return _reportes.where((r) => r.estado.name == _filtro).toList();
-  }
+  List<ReporteResumen> get _filtrados => _reportes;
 
-  int _count(ReporteEstado e) =>
-      _reportes.where((r) => r.estado == e).length;
+  int _count(ReporteEstado e) => _conteosPorEstado[e.name] ?? 0;
 
   @override
   Widget build(BuildContext context) {
@@ -395,7 +408,10 @@ class _MantenimientoScreenState extends State<MantenimientoScreen> {
                   final isActive = _filtro == f['value'];
                   return Expanded(
                     child: GestureDetector(
-                      onTap: () => setState(() => _filtro = f['value']!),
+                      onTap: () {
+                        setState(() => _filtro = f['value']!);
+                        _cargarReportes();
+                      },
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 150),
                         padding: const EdgeInsets.symmetric(vertical: 8),

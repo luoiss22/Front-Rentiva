@@ -127,8 +127,21 @@ Route<dynamic>? _generateRoute(RouteSettings settings) {
       return MaterialPageRoute(builder: (_) => NuevoMobiliarioScreen(propiedadId: id));
     }
     case '/mobiliario/editar': {
-      final id = settings.arguments as int?;
-      return MaterialPageRoute(builder: (_) => EditarMobiliarioScreen(propiedadMobiliarioId: id));
+      final args = settings.arguments;
+      int? id;
+      String? nombre;
+      if (args is int) {
+        id = args;
+      } else if (args is Map) {
+        id     = args['id'] as int?;
+        nombre = args['propiedadNombre'] as String?;
+      }
+      return MaterialPageRoute(
+        builder: (_) => EditarMobiliarioScreen(
+          propiedadMobiliarioId: id,
+          propiedadNombre: nombre,
+        ),
+      );
     }
     case '/inquilinos':
       return MaterialPageRoute(builder: (_) => const InquilinosScreen());
