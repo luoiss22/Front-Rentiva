@@ -300,7 +300,7 @@ class _PropiedadCard extends StatelessWidget {
                   children: [
                     // Imagen con fallback
                     Image.network(
-                      '${propiedad.fotoPrincipal ?? ''}?t=${DateTime.now().millisecondsSinceEpoch}',
+                      propiedad.fotoPrincipal ?? '',
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => Container(
                         color: const Color(0xFFACF0F2).withOpacity(0.3),

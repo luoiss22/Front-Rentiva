@@ -17,6 +17,13 @@ class _ContratosScreenState extends State<ContratosScreen> {
   String? _filtroEstado;
   String _error = '';
 
+  void _onNavTap(int index) {
+    const routes = [
+      '/inicio-usuario', '/propiedades', '/inquilinos', '/pagos', '/mantenimiento',
+    ];
+    if (index != _navIndex) Navigator.pushNamed(context, routes[index]);
+  }
+
   static const _estados = <String, String>{
     'borrador': 'Borrador',
     'activo': 'Activo',
@@ -131,7 +138,7 @@ class _ContratosScreenState extends State<ContratosScreen> {
       ),
       bottomNavigationBar: BottomNavBar(
         currentIndex: _navIndex,
-        onTap: (i) {},
+        onTap: _onNavTap,
       ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: const Color(0xFF225378),

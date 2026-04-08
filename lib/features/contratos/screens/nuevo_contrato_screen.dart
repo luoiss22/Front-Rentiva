@@ -24,6 +24,7 @@ class _NuevoContratoScreenState extends State<NuevoContratoScreen> {
   int? _propiedadId;
   int? _arrendatarioId;
   String _periodoPago = 'mensual';
+  bool _guardando = false;
 
   final _rentaCtrl      = TextEditingController();
   final _diaPagoCtrl    = TextEditingController();
@@ -107,6 +108,8 @@ class _NuevoContratoScreenState extends State<NuevoContratoScreen> {
       );
       return;
     }
+    if (_guardando) return;
+    setState(() => _guardando = true);
 
     try {
       await ContratosService.crear({
@@ -117,6 +120,7 @@ class _NuevoContratoScreenState extends State<NuevoContratoScreen> {
         'renta_acordada': _rentaCtrl.text,
         'dia_pago':      int.parse(_diaPagoCtrl.text),
         'periodo_pago':  _periodoPago,
+        'estado':        'activo',
         if (_depositoCtrl.text.isNotEmpty)
           'deposito': _depositoCtrl.text,
         if (_notasCtrl.text.isNotEmpty)
@@ -151,6 +155,8 @@ class _NuevoContratoScreenState extends State<NuevoContratoScreen> {
           behavior: SnackBarBehavior.floating,
         ),
       );
+    } finally {
+      if (mounted) setState(() => _guardando = false);
     }
   }
 
@@ -329,10 +335,15 @@ class _NuevoContratoScreenState extends State<NuevoContratoScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
-                        onPressed: _guardar,
-                        icon: const Icon(Icons.save_outlined, size: 20),
-                        label: const Text('Crear Contrato',
-                            style: TextStyle(
+                        onPressed: _guardando ? null : _guardar,
+                        icon: _guardando
+                            ? const SizedBox(
+                                width: 18, height: 18,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: Colors.white))
+                            : const Icon(Icons.save_outlined, size: 20),
+                        label: Text(_guardando ? 'Creando...' : 'Crear Contrato',
+                            style: const TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 16)),
                         style: ElevatedButton.styleFrom(

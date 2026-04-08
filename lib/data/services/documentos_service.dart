@@ -106,6 +106,13 @@ class DocumentosService {
     required File archivo,
     String descripcion = '',
   }) async {
+    const maxBytes = 20 * 1024 * 1024; // 20 MB — mismo límite que nginx
+    final size = await archivo.length();
+    if (size > maxBytes) {
+      final mb = (size / (1024 * 1024)).toStringAsFixed(1);
+      throw Exception('El archivo pesa ${mb} MB. El límite es 20 MB. Comprime o elige otro archivo.');
+    }
+
     final data = await ApiClient.multipart(
       'POST',
       '/documentos/',

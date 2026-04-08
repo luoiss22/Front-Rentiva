@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import '../../../core/services/api_client.dart';
 import '../../../core/widgets/app_header.dart';
 import '../../../core/widgets/bottom_navbar.dart';
 import '../../../data/services/documentos_service.dart';
@@ -343,12 +344,45 @@ class _SubirDocumentoSheetState extends State<_SubirDocumentoSheet> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-        ));
         setState(() => _subiendo = false);
+        final bool esTamano = (e is ApiException && e.statusCode == 413) ||
+            e.toString().contains('límite') ||
+            e.toString().contains('pesa');
+        if (esTamano) {
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Row(children: [
+                const Icon(Icons.file_download_off_outlined, color: Colors.orange, size: 22),
+                const SizedBox(width: 8),
+                const Text('Archivo muy grande',
+                    style: TextStyle(color: Color(0xFF225378), fontWeight: FontWeight.bold, fontSize: 15)),
+              ]),
+              content: Text(
+                e.toString().replaceFirst('Exception: ', ''),
+                style: const TextStyle(color: Colors.grey, fontSize: 13),
+              ),
+              actions: [
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1695A3),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: const Text('Entendido'),
+                ),
+              ],
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ));
+        }
       }
     }
   }

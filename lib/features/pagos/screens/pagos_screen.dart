@@ -74,9 +74,16 @@ class _PagosScreenState extends State<PagosScreen> {
   }
 
   // Totales
-  double get _totalMes => _pagos
-      .where((p) => p.estado == PagoEstado.pagado)
-      .fold(0, (s, p) => s + p.monto);
+  double get _totalMes {
+    final ahora = DateTime.now();
+    return _pagos
+        .where((p) =>
+            p.estado == PagoEstado.pagado &&
+            p.fechaPago != null &&
+            p.fechaPago!.year == ahora.year &&
+            p.fechaPago!.month == ahora.month)
+        .fold(0, (s, p) => s + p.monto);
+  }
 
   double get _totalPendiente => _pagos
       .where((p) =>

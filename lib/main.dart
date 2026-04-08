@@ -11,6 +11,7 @@ import 'package:rentiva/features/home/screens/tutorial_screen.dart';
 import 'package:rentiva/features/contratos/screens/contratos_screen.dart';
 import 'package:rentiva/features/contratos/screens/nuevo_contrato_screen.dart';
 import 'package:rentiva/features/contratos/screens/detalle_contrato_screen.dart';
+import 'package:rentiva/features/contratos/screens/editar_contrato_screen.dart';
 import 'package:rentiva/features/documentos/screens/documentos_screen.dart';
 import 'package:rentiva/features/fiscal/screens/fiscal_screen.dart';
 import 'package:rentiva/features/fiscal/screens/nuevo_fiscal_screen.dart';
@@ -123,8 +124,21 @@ Route<dynamic>? _generateRoute(RouteSettings settings) {
       return MaterialPageRoute(builder: (_) => EditarPropiedadScreen(propiedadId: id));
     }
     case '/mobiliario/nuevo': {
-      final id = settings.arguments as int?;
-      return MaterialPageRoute(builder: (_) => NuevoMobiliarioScreen(propiedadId: id));
+      final args = settings.arguments;
+      int? id;
+      String? nombre;
+      if (args is int) {
+        id = args;
+      } else if (args is Map) {
+        id     = args['id'] as int?;
+        nombre = args['propiedadNombre'] as String?;
+      }
+      return MaterialPageRoute(
+        builder: (_) => NuevoMobiliarioScreen(
+          propiedadId: id,
+          propiedadNombre: nombre,
+        ),
+      );
     }
     case '/mobiliario/editar': {
       final args = settings.arguments;
@@ -164,6 +178,10 @@ Route<dynamic>? _generateRoute(RouteSettings settings) {
     case '/contratos/detalle': {
       final id = settings.arguments as int?;
       return MaterialPageRoute(builder: (_) => DetalleContratoScreen(contratoId: id));
+    }
+    case '/contratos/editar': {
+      final id = settings.arguments as int?;
+      return MaterialPageRoute(builder: (_) => EditarContratoScreen(contratoId: id));
     }
     case '/mantenimiento':
       return MaterialPageRoute(builder: (_) => const MantenimientoScreen());

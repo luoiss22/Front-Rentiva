@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/widgets/app_header.dart';
 import '../../../data/services/contratos_service.dart';
+import 'editar_contrato_screen.dart';
 
 class DetalleContratoScreen extends StatefulWidget {
   final int? contratoId;
@@ -78,6 +79,60 @@ class _DetalleContratoScreenState extends State<DetalleContratoScreen> {
         SnackBar(content: Text('Error: $e'),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating),
+      );
+    }
+  }
+
+  Future<void> _activarContrato() async {
+    final estadoActual = (_contrato?['estado'] ?? '').toString();
+    if (estadoActual == 'activo') return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Activar contrato',
+            style: TextStyle(color: Color(0xFF225378), fontWeight: FontWeight.bold)),
+        content: const Text(
+          'El contrato se marcará como activo y la propiedad quedará como rentada.',
+          style: TextStyle(color: Colors.grey, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('No', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1695A3),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Activar', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    try {
+      final actualizado = await ContratosService.actualizar(
+        widget.contratoId!, {'estado': 'activo'},
+      );
+      if (!mounted) return;
+      setState(() => _contrato = actualizado);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Contrato activado correctamente'),
+          backgroundColor: Color(0xFF1695A3),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'),
+            backgroundColor: Colors.red, behavior: SnackBarBehavior.floating),
       );
     }
   }
@@ -164,7 +219,25 @@ class _DetalleContratoScreenState extends State<DetalleContratoScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
-      appBar: const AppHeader(title: 'Detalle Contrato', showBack: true),
+      appBar: AppHeader(
+        title: 'Detalle Contrato',
+        showBack: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit_outlined, color: Color(0xFFEB7F00)),
+            tooltip: 'Editar contrato',
+            onPressed: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => EditarContratoScreen(contratoId: widget.contratoId),
+                ),
+              );
+              if (result == true) _cargar();
+            },
+          ),
+        ],
+      ),
       body: _cargando
           ? const Center(
               child: CircularProgressIndicator(
@@ -244,6 +317,23 @@ class _DetalleContratoScreenState extends State<DetalleContratoScreen> {
           // Botones de acción
           Row(
             children: [
+              if (estado == 'borrador') ...[
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _activarContrato,
+                    icon: const Icon(Icons.check_circle_outline, size: 18),
+                    label: const Text('Activar'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1695A3),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+              ],
               Expanded(
                 child: ElevatedButton.icon(
                   onPressed: (estado == 'cancelado' || estado == 'finalizado')

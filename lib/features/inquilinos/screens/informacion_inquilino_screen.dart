@@ -577,14 +577,22 @@ class _TabPagosState extends State<_TabPagos> {
 }
 
 // ─── TAB: DOCUMENTOS ─────────────────────────────────────────────────────────
-class _TabDocumentos extends StatelessWidget {
+class _TabDocumentos extends StatefulWidget {
   final ArrendatarioDetalle inquilino;
   const _TabDocumentos({required this.inquilino});
+
+  @override
+  State<_TabDocumentos> createState() => _TabDocumentosState();
+}
+
+class _TabDocumentosState extends State<_TabDocumentos> {
+  int? _contratoActivoId;
+  bool _cancelando = false;
 
   Future<void> _generarContratoPdf(BuildContext context) async {
     try {
       // Cargar contrato activo del arrendatario
-      final data = await ApiClient.get('/contratos/?arrendatario=${inquilino.id}&estado=activo');
+      final data = await ApiClient.get('/contratos/?arrendatario=${widget.inquilino.id}&estado=activo');
       final lista = data is List ? data : (data['results'] ?? []);
 
       String direccion = 'Ver contrato para dirección';
@@ -620,7 +628,7 @@ class _TabDocumentos extends StatelessWidget {
       } catch (_) {}
 
       ContratoPdf.generarConDatos(
-        arrendatario:       inquilino.nombreCompleto,
+        arrendatario:       widget.inquilino.nombreCompleto,
         inmuebleDireccion:  direccion,
         renta:              renta,
         ciudad:             ciudad,
@@ -632,11 +640,85 @@ class _TabDocumentos extends StatelessWidget {
     } catch (_) {
       // Si falla la carga, genera con lo que se tiene
       ContratoPdf.generarConDatos(
-        arrendatario:      inquilino.nombreCompleto,
+        arrendatario:      widget.inquilino.nombreCompleto,
         inmuebleDireccion: 'Ver contrato para dirección',
         renta:             'Ver contrato para monto',
         ciudad:            'México',
       );
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarContratoActivo();
+  }
+
+  Future<void> _cargarContratoActivo() async {
+    try {
+      final data = await ApiClient.get(
+          '/contratos/?arrendatario=${widget.inquilino.id}&estado=activo');
+      final lista = data is List ? data : (data['results'] ?? []);
+      if ((lista as List).isNotEmpty && mounted) {
+        setState(() => _contratoActivoId = lista.first['id'] as int?);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _cancelarContrato(BuildContext ctx) async {
+    if (_contratoActivoId == null) return;
+    final confirm = await showDialog<bool>(
+      context: ctx,
+      builder: (dlg) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Cancelar contrato',
+            style: TextStyle(color: Color(0xFF225378), fontWeight: FontWeight.bold)),
+        content: const Text(
+          'Esta acción cancelará el contrato activo y liberará la propiedad. ¿Deseas continuar?',
+          style: TextStyle(color: Colors.grey, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dlg, false),
+            child: const Text('No', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dlg, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Cancelar contrato',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    setState(() => _cancelando = true);
+    try {
+      await ApiClient.patch('/contratos/$_contratoActivoId/', {'estado': 'cancelado'});
+      if (!mounted) return;
+      setState(() => _contratoActivoId = null);
+      ScaffoldMessenger.of(ctx).showSnackBar(
+        const SnackBar(
+          content: Text('Contrato cancelado'),
+          backgroundColor: Color(0xFF1695A3),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(ctx).showSnackBar(
+        SnackBar(
+          content: Text('Error al cancelar: $e'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _cancelando = false);
     }
   }
 
@@ -708,6 +790,36 @@ class _TabDocumentos extends StatelessWidget {
               ),
             ),
           ),
+          if (_contratoActivoId != null) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _cancelando ? null : () => _cancelarContrato(context),
+                icon: _cancelando
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.red),
+                      )
+                    : const Icon(Icons.cancel_outlined, size: 16, color: Colors.red),
+                label: Text(
+                  _cancelando ? 'Cancelando...' : 'Cancelar Contrato',
+                  style: const TextStyle(
+                      color: Colors.red,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.red),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

@@ -66,6 +66,11 @@ class ApiClient {
       return data;
     }
 
+    // Nginx rechaza la petición antes de llegar a Django — el body es HTML.
+    if (response.statusCode == 413) {
+      throw ApiException(413, 'El archivo es demasiado grande. El límite es 20 MB.');
+    }
+
     String msg = 'Error desconocido';
     if (data is Map) {
       if (data.containsKey('detail')) {
