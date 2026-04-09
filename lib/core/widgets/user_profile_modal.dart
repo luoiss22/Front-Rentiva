@@ -251,6 +251,7 @@ class _UserProfileModalState extends State<UserProfileModal> {
     }
   }
 
+  String? _errorMsg;
   bool _subiendoFoto = false;
 
   Future<void> _pickImage() async {
@@ -399,24 +400,20 @@ class _UserProfileModalState extends State<UserProfileModal> {
   void _handleSave() async {
     final error = _validarCampos();
     if (error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      setState(() => _errorMsg = error);
       return;
     }
+    setState(() => _errorMsg = null);
     try {
+      final esAdmin = _userData['cargo'] == 'admin';
       final body = <String, dynamic>{
         'nombre':    _nombreCtrl.text.trim(),
         'apellidos': _apellidosCtrl.text.trim(),
         'telefono':  _telefonoCtrl.text.trim(),
         'email':     _emailCtrl.text.trim(),
         'folio_ine': _claveElectorCtrl.text.trim(),
-        'banco':     _banco,
-        'clabe_interbancaria': _clabeCtrl.text.trim(),
+        if (!esAdmin) 'banco': _banco,
+        if (!esAdmin) 'clabe_interbancaria': _clabeCtrl.text.trim(),
         if (_fechaNacCtrl.text.isNotEmpty)
           'fecha_nacimiento': _displayAIso(_fechaNacCtrl.text),
       };
@@ -426,10 +423,13 @@ class _UserProfileModalState extends State<UserProfileModal> {
       print('[Profile] _userId: $_userId');
       final profileRes = await ApiClient.patch('/auth/me/', body);
       final data = profileRes['usuario'] as Map<String, dynamic>? ?? profileRes;
-      _fotoUrl = ApiClient.resolveMediaUrl(data['foto'] as String?);
+      final nuevaFoto = ApiClient.resolveMediaUrl(data['foto'] as String?);
+      if (nuevaFoto != null) {
+        _fotoUrl = '$nuevaFoto?t=${DateTime.now().millisecondsSinceEpoch}';
+      }
 
-      // Guardar Datos Fiscales
-      if (_userId != null) {
+      // Guardar Datos Fiscales (solo propietarios)
+      if (_userId != null && !esAdmin) {
         final bodyFiscal = {
           'tipo_entidad': 'propietario',
           'entidad_id': _userId,
@@ -485,19 +485,11 @@ class _UserProfileModalState extends State<UserProfileModal> {
     } on ApiException catch (e) {
       // ignore: avoid_print
       print('[Profile] ApiException ${e.statusCode}: ${e.message}');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message), backgroundColor: Colors.red, behavior: SnackBarBehavior.floating),
-        );
-      }
+      if (mounted) setState(() => _errorMsg = e.message);
     } catch (e, st) {
       // ignore: avoid_print
       print('[Profile] catch generico: $e\n$st');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Error al guardar'), backgroundColor: Colors.red, behavior: SnackBarBehavior.floating),
-        );
-      }
+      if (mounted) setState(() => _errorMsg = 'Error al guardar');
     }
   }
 
@@ -537,6 +529,7 @@ class _UserProfileModalState extends State<UserProfileModal> {
       _webImage              = null;
       _imagenCambiada        = false;
       _isEditing = false;
+      _errorMsg  = null;
     });
   }
 
@@ -1160,6 +1153,42 @@ class _UserProfileModalState extends State<UserProfileModal> {
           ],
         ),
         const SizedBox(height: 20),
+
+        // ── Error inline ──────────────────────────────────────────────────
+        if (_errorMsg != null) ...[
+          const SizedBox(height: 8),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.red.shade50,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.red.shade200),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.error_outline, color: Colors.red.shade600, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _errorMsg!,
+                    style: TextStyle(
+                      color: Colors.red.shade700,
+                      fontSize: 12,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => setState(() => _errorMsg = null),
+                  child: Icon(Icons.close, color: Colors.red.shade400, size: 16),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
 
         // ── Botones ───────────────────────────────────────────────────────
         Row(

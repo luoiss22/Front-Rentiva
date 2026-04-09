@@ -76,10 +76,15 @@ class ApiClient {
       if (data.containsKey('detail')) {
         msg = data['detail'].toString();
       } else {
-        msg = data.entries.map((e) {
-          final v = e.value;
-          return v is List ? v.join(', ') : v.toString();
-        }).join(' | ');
+        final partes = <String>[];
+        data.forEach((campo, valor) {
+          final campoLegible = _nombreCampo(campo.toString());
+          final mensajes = valor is List
+              ? valor.map((e) => e.toString()).join(', ')
+              : valor.toString();
+          partes.add('$campoLegible: $mensajes');
+        });
+        msg = partes.join('\n');
       }
     } else if (data is String && data.trim().isNotEmpty) {
       msg = data;
@@ -242,6 +247,42 @@ class ApiClient {
     }
 
     return _parse(res);
+  }
+
+  static String _nombreCampo(String campo) {
+    const mapa = {
+      'nombre':              'Nombre',
+      'apellidos':           'Apellidos',
+      'email':               'Email',
+      'telefono':            'Teléfono',
+      'password':            'Contraseña',
+      'folio_ine':           'Folio INE',
+      'fecha_nacimiento':    'Fecha de nacimiento',
+      'rfc':                 'RFC',
+      'codigo_postal':       'Código postal',
+      'correo_facturacion':  'Correo de facturación',
+      'nombre_o_razon_social': 'Razón social',
+      'regimen_fiscal':      'Régimen fiscal',
+      'uso_cfdi':            'Uso CFDI',
+      'clabe_interbancaria': 'CLABE interbancaria',
+      'banco':               'Banco',
+      'propiedad':           'Propiedad',
+      'arrendatario':        'Inquilino',
+      'fecha_inicio':        'Fecha de inicio',
+      'fecha_fin':           'Fecha de fin',
+      'renta_acordada':      'Renta acordada',
+      'deposito':            'Depósito',
+      'dia_pago':            'Día de pago',
+      'monto':               'Monto',
+      'periodo':             'Periodo',
+      'direccion':           'Dirección',
+      'ciudad':              'Ciudad',
+      'estado_geografico':   'Estado',
+      'descripcion':         'Descripción',
+      'titulo':              'Título',
+      'non_field_errors':    'Error',
+    };
+    return mapa[campo] ?? campo;
   }
 
   static MediaType _mimeFromExt(String ext) {
