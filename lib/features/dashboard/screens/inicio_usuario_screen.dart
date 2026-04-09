@@ -32,6 +32,19 @@ class _InicioUsuarioScreenState extends State<InicioUsuarioScreen> {
     if (index != _navIndex) Navigator.pushNamed(context, routes[index]);
   }
 
+  Future<List<dynamic>> _cargarTodosPagados() async {
+    final List<dynamic> todos = [];
+    int page = 1;
+    while (true) {
+      final data = await ApiClient.get('/pagos/?estado=pagado&page=$page&page_size=100');
+      final results = data is List ? data : (data['results'] ?? []);
+      todos.addAll(results as List);
+      if (data is List || data['next'] == null) break;
+      page++;
+    }
+    return todos;
+  }
+
   Future<void> _cargarDatos() async {
     final user = await StorageService.getUser();
     if (mounted) setState(() => _nombre = user?['nombre'] ?? '');
@@ -44,8 +57,8 @@ class _InicioUsuarioScreenState extends State<InicioUsuarioScreen> {
         ApiClient.get('/propiedades/'),
         ApiClient.get('/arrendatarios/?estado=activo'),
         ApiClient.get('/pagos/?estado=pendiente'),
-        ApiClient.get('/pagos/?ordering=-fecha_limite&page_size=3'),
-        ApiClient.get('/pagos/?estado=pagado&page_size=200'),
+        ApiClient.get('/pagos/?ordering=-created_at&page_size=5'),
+        _cargarTodosPagados(),
       ]);
 
       final propiedades       = resultados[0];
@@ -83,11 +96,14 @@ class _InicioUsuarioScreenState extends State<InicioUsuarioScreen> {
         totalesMes[fecha.month - 1] += double.tryParse(p['monto'].toString()) ?? 0;
       }
 
-      // Solo incluir meses hasta el actual para que la gráfica no muestre zeros futuros
+      // Solo mostrar gráfica si hay al menos un mes con ingresos reales
       final mesActual = DateTime.now().month;
+      final hayIngresos = totalesMes.any((v) => v > 0);
       final chart = <_ChartData>[];
-      for (int i = 0; i < mesActual; i++) {
-        chart.add(_ChartData(mesesLabel[i], totalesMes[i]));
+      if (hayIngresos) {
+        for (int i = 0; i < mesActual; i++) {
+          chart.add(_ChartData(mesesLabel[i], totalesMes[i]));
+        }
       }
 
       if (!mounted) return;
@@ -310,6 +326,7 @@ class _RevenueChart extends StatelessWidget {
     final maxVal = chartData.fold<double>(0, (m, d) => d.value > m ? d.value : m);
     final divisor = maxVal > 100000 ? 1000.0 : maxVal > 1000 ? 100.0 : 1.0;
     final sufijo  = divisor == 1000.0 ? 'k' : divisor == 100.0 ? 'c' : '';
+    final yMax    = maxVal > 0 ? (maxVal / divisor) * 1.2 : 1.0;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -340,6 +357,8 @@ class _RevenueChart extends StatelessWidget {
           SizedBox(
             height: 180,
             child: LineChart(LineChartData(
+              minY: 0,
+              maxY: yMax,
               gridData: FlGridData(
                 show: true,
                 drawVerticalLine: false,
@@ -417,6 +436,47 @@ class _RecentActivity extends StatelessWidget {
   final List<Map<String, dynamic>> actividad;
   const _RecentActivity({required this.actividad});
 
+  // Íconos y colores según estado del pago
+  static _EstadoVisual _visualEstado(String? estado) {
+    switch (estado) {
+      case 'pagado':
+        return _EstadoVisual(
+          icon: Icons.check_circle_outline,
+          color: const Color(0xFF15803D),
+          bg: const Color(0xFFDCFCE7),
+          label: 'Pagado',
+        );
+      case 'vencido':
+        return _EstadoVisual(
+          icon: Icons.warning_amber_outlined,
+          color: const Color(0xFFBE123C),
+          bg: const Color(0xFFFFE4E6),
+          label: 'Vencido',
+        );
+      case 'parcial':
+        return _EstadoVisual(
+          icon: Icons.incomplete_circle_outlined,
+          color: const Color(0xFFEA580C),
+          bg: const Color(0xFFFFEDD5),
+          label: 'Parcial',
+        );
+      case 'cancelado':
+        return _EstadoVisual(
+          icon: Icons.cancel_outlined,
+          color: Colors.grey,
+          bg: const Color(0xFFF1F5F9),
+          label: 'Cancelado',
+        );
+      default: // pendiente
+        return _EstadoVisual(
+          icon: Icons.schedule_outlined,
+          color: const Color(0xFFA16207),
+          bg: const Color(0xFFFEF9C3),
+          label: 'Pendiente',
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -435,11 +495,25 @@ class _RecentActivity extends StatelessWidget {
         else
           ...actividad.map((pago) {
             final monto = pago['monto']?.toString() ?? '0';
-            // El serializer devuelve: periodo, inquilino_nombre, fecha_pago, fecha_limite
-            final concepto = pago['inquilino_nombre'] != null && pago['inquilino_nombre'].toString().isNotEmpty
-                ? '${pago['inquilino_nombre']} — ${pago['periodo'] ?? ''}'
-                : (pago['periodo'] ?? 'Pago');
+            final estado = pago['estado'] as String?;
+            final vis = _visualEstado(estado);
+
+            final inquilino = pago['inquilino_nombre']?.toString() ?? '';
+            final propiedad = pago['propiedad_nombre']?.toString() ?? '';
+            final periodo = pago['periodo']?.toString() ?? '';
+
+            // Línea principal: nombre del inquilino — periodo
+            final titulo = inquilino.isNotEmpty
+                ? '$inquilino — $periodo'
+                : periodo.isNotEmpty ? periodo : 'Pago';
+
+            // Subtítulo: propiedad + fecha
             final fecha = pago['fecha_pago'] ?? pago['fecha_limite'] ?? '';
+            final subtitulo = [
+              if (propiedad.isNotEmpty) propiedad,
+              if (fecha.toString().isNotEmpty) fecha.toString(),
+            ].join(' · ');
+
             return Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: Container(
@@ -448,7 +522,7 @@ class _RecentActivity extends StatelessWidget {
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(14),
                   border: Border(
-                    left: const BorderSide(color: Color(0xFFEB7F00), width: 4),
+                    left: BorderSide(color: vis.color, width: 4),
                     top: BorderSide(color: Colors.grey.shade100),
                     right: BorderSide(color: Colors.grey.shade100),
                     bottom: BorderSide(color: Colors.grey.shade100),
@@ -459,23 +533,37 @@ class _RecentActivity extends StatelessWidget {
                   children: [
                     Container(
                       padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(20)),
-                      child: const Icon(Icons.receipt_outlined, size: 18, color: Color(0xFFEB7F00)),
+                      decoration: BoxDecoration(color: vis.bg, borderRadius: BorderRadius.circular(20)),
+                      child: Icon(vis.icon, size: 18, color: vis.color),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(concepto,
-                              style: const TextStyle(color: Color(0xFF225378), fontWeight: FontWeight.bold, fontSize: 13)),
-                          if (fecha.isNotEmpty)
-                            Text(fecha, style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                          Text(titulo,
+                              style: const TextStyle(
+                                  color: Color(0xFF225378), fontWeight: FontWeight.bold, fontSize: 13)),
+                          if (subtitulo.isNotEmpty)
+                            Text(subtitulo, style: const TextStyle(color: Colors.grey, fontSize: 11)),
                         ],
                       ),
                     ),
-                    Text('\$$monto',
-                        style: const TextStyle(color: Color(0xFF1695A3), fontWeight: FontWeight.bold, fontSize: 13)),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text('\$$monto',
+                            style: const TextStyle(
+                                color: Color(0xFF1695A3), fontWeight: FontWeight.bold, fontSize: 13)),
+                        const SizedBox(height: 3),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(color: vis.bg, borderRadius: BorderRadius.circular(8)),
+                          child: Text(vis.label,
+                              style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: vis.color)),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -484,6 +572,14 @@ class _RecentActivity extends StatelessWidget {
       ],
     );
   }
+}
+
+class _EstadoVisual {
+  final IconData icon;
+  final Color color;
+  final Color bg;
+  final String label;
+  const _EstadoVisual({required this.icon, required this.color, required this.bg, required this.label});
 }
 
 // ─── DATA MODELS ─────────────────────────────────────────────────────────────
