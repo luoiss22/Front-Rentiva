@@ -1,4 +1,4 @@
-// ─── MODELOS según Django ─────────────────────────────────────────────────────
+import '../../../core/services/api_client.dart';
 class UsuarioAdmin {
   final int id;
   final String nombre;
@@ -44,7 +44,7 @@ class UsuarioAdmin {
       fechaNacimiento: json['fecha_nacimiento'] != null
           ? DateTime.tryParse(json['fecha_nacimiento'])
           : null,
-      fotoUrl: json['foto'] as String?,
+      fotoUrl: ApiClient.resolveMediaUrl(json['foto'] as String?),
       createdAt: DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
     );
   }
@@ -166,7 +166,7 @@ class Admin {
       telefono: json['telefono'] ?? '',
       email: json['email'] ?? '',
       folioIne: json['folio_ine'] ?? '',
-      fotoUrl: json['foto'] as String?,
+      fotoUrl: ApiClient.resolveMediaUrl(json['foto'] as String?),
       estado: json['estado'] ?? 'activo',
       createdAt: DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
       updatedAt: DateTime.tryParse(json['updated_at'] ?? '') ?? DateTime.now(),

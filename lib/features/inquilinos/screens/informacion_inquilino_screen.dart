@@ -189,7 +189,7 @@ class _InformacionInquilinoScreenState
                   inquilino: inq,
                   onEdit: () => Navigator.pushNamed(
                     context, '/inquilinos/editar', arguments: inq.id,
-                  ),
+                  ).then((_) => _cargarDatos()),
                 ),
                 const SizedBox(height: 52),
                 Padding(
@@ -226,7 +226,7 @@ class _InformacionInquilinoScreenState
         body: TabBarView(
           controller: _tabController,
           children: [
-            _TabGeneral(inquilino: inq, onLlamar: _llamar, onWhatsApp: _abrirWhatsApp),
+            _TabGeneral(inquilino: inq, onLlamar: _llamar, onWhatsApp: _abrirWhatsApp, onEditar: _cargarDatos),
             _TabPagos(inquilinoId: inq.id),
             _TabDocumentos(inquilino: inq),
           ],
@@ -295,16 +295,23 @@ class _ProfileHeader extends StatelessWidget {
             width: 88, height: 88,
             padding: const EdgeInsets.all(3),
             decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-            child: Container(
-              decoration: const BoxDecoration(
-                color: Color(0xFFACF0F2), shape: BoxShape.circle,
-              ),
-              child: inquilino.fotoUrl != null
-                  ? ClipOval(
-                      child: Image.network(inquilino.fotoUrl!, fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _inicial(inquilino.inicial)),
+            child: ClipOval(
+              child: inquilino.fotoUrl != null && inquilino.fotoUrl!.isNotEmpty
+                  ? Image.network(
+                      inquilino.fotoUrl!,
+                      width: 82, height: 82,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        width: 82, height: 82,
+                        color: const Color(0xFFACF0F2),
+                        child: Center(child: _inicial(inquilino.inicial)),
+                      ),
                     )
-                  : _inicial(inquilino.inicial),
+                  : Container(
+                      width: 82, height: 82,
+                      color: const Color(0xFFACF0F2),
+                      child: Center(child: _inicial(inquilino.inicial)),
+                    ),
             ),
           ),
         ),
@@ -324,7 +331,8 @@ class _TabGeneral extends StatelessWidget {
   final ArrendatarioDetalle inquilino;
   final VoidCallback onLlamar;
   final VoidCallback onWhatsApp;
-  const _TabGeneral({required this.inquilino, required this.onLlamar, required this.onWhatsApp});
+  final VoidCallback onEditar;
+  const _TabGeneral({required this.inquilino, required this.onLlamar, required this.onWhatsApp, required this.onEditar});
 
   @override
   Widget build(BuildContext context) {
@@ -410,7 +418,7 @@ class _TabGeneral extends StatelessWidget {
           // ── Acción editar ─────────────────────────────────────────────────
           GestureDetector(
             onTap: () => Navigator.pushNamed(context, '/inquilinos/editar',
-                arguments: inq.id),
+                arguments: inq.id).then((_) => onEditar()),
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.all(14),

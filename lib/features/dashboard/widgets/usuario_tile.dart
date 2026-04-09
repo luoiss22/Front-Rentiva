@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'admin_models.dart';
+import '../../../core/services/api_client.dart';
 
 // ─── TILE USUARIO ─────────────────────────────────────────────────────────────
 class UsuarioTile extends StatelessWidget {
@@ -43,14 +44,37 @@ class UsuarioTile extends StatelessWidget {
                     : Colors.grey.shade100,
                 shape: BoxShape.circle,
               ),
-              child: Center(
-                child: Text(usuario.inicial,
-                    style: TextStyle(
-                        color: usuario.activo
-                            ? const Color(0xFF1695A3)
-                            : Colors.grey,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 17)),
+              child: ClipOval(
+                child: () {
+                  final url = usuario.fotoUrl != null
+                      ? ApiClient.resolveMediaUrl(usuario.fotoUrl)
+                      : null;
+                  if (url != null && url.isNotEmpty) {
+                    return Image.network(
+                      url,
+                      width: 42, height: 42,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Center(
+                        child: Text(usuario.inicial,
+                            style: TextStyle(
+                                color: usuario.activo
+                                    ? const Color(0xFF1695A3)
+                                    : Colors.grey,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 17)),
+                      ),
+                    );
+                  }
+                  return Center(
+                    child: Text(usuario.inicial,
+                        style: TextStyle(
+                            color: usuario.activo
+                                ? const Color(0xFF1695A3)
+                                : Colors.grey,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 17)),
+                  );
+                }(),
               ),
             ),
             const SizedBox(width: 12),
