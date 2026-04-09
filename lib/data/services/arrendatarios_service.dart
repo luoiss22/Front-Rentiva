@@ -11,6 +11,7 @@ class ArrendatarioItem {
   final String telefono;
   final String estado;
   final String propiedadActual;
+  final String? fotoUrl;
 
   const ArrendatarioItem({
     required this.id,
@@ -20,6 +21,7 @@ class ArrendatarioItem {
     required this.telefono,
     required this.estado,
     required this.propiedadActual,
+    this.fotoUrl,
   });
 
   factory ArrendatarioItem.fromJson(Map<String, dynamic> json) {
@@ -31,6 +33,7 @@ class ArrendatarioItem {
       telefono:  json['telefono']  ?? '',
       estado:    json['estado']    ?? 'activo',
       propiedadActual: json['propiedad_actual'] ?? 'Sin propiedad',
+      fotoUrl:   ApiClient.resolveMediaUrl(json['foto'] as String?),
     );
   }
 

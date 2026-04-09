@@ -178,26 +178,35 @@ class _StatsGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GridView.count(
-      crossAxisCount: 2,
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
-      childAspectRatio: 1.3,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
+    return Column(
       children: [
-        ...stats.map((s) => _StatCard(data: s)),
-        _QuickActionButton(
-          color: const Color(0xFF225378),
-          icon: Icons.home_outlined,
-          label: '+ Propiedad',
-          onTap: () => Navigator.pushNamed(context, '/propiedades/nueva'),
+        GridView.count(
+          crossAxisCount: 2,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 1.3,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          children: [
+            ...stats.map((s) => _StatCard(data: s)),
+            _QuickActionButton(
+              color: const Color(0xFF225378),
+              icon: Icons.home_outlined,
+              label: '+ Propiedad',
+              onTap: () => Navigator.pushNamed(context, '/propiedades/nueva'),
+            ),
+          ],
         ),
-        _QuickActionButton(
-          color: const Color(0xFFEB7F00),
-          icon: Icons.build_outlined,
-          label: '+ Reporte',
-          onTap: () => Navigator.pushNamed(context, '/mantenimiento/nuevo'),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          height: 70,
+          child: _QuickActionButton(
+            color: const Color(0xFFEB7F00),
+            icon: Icons.build_outlined,
+            label: '+ Reporte',
+            onTap: () => Navigator.pushNamed(context, '/mantenimiento/nuevo'),
+          ),
         ),
       ],
     );

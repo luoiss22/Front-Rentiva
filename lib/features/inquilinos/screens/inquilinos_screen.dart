@@ -272,15 +272,33 @@ class _InquilinoCard extends StatelessWidget {
                 color: Color(0xFFACF0F2),
                 shape: BoxShape.circle,
               ),
-              child: Center(
-                child: Text(
-                  a.inicial,
-                  style: const TextStyle(
-                    color: Color(0xFF1695A3),
-                    fontWeight: FontWeight.bold,
-                    fontSize: 20,
-                  ),
-                ),
+              child: ClipOval(
+                child: a.fotoUrl != null && a.fotoUrl!.isNotEmpty
+                    ? Image.network(
+                        a.fotoUrl!,
+                        width: 50, height: 50,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Center(
+                          child: Text(
+                            a.inicial,
+                            style: const TextStyle(
+                              color: Color(0xFF1695A3),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 20,
+                            ),
+                          ),
+                        ),
+                      )
+                    : Center(
+                        child: Text(
+                          a.inicial,
+                          style: const TextStyle(
+                            color: Color(0xFF1695A3),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 20,
+                          ),
+                        ),
+                      ),
               ),
             ),
             const SizedBox(width: 12),

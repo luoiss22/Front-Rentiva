@@ -386,7 +386,28 @@ class _UserProfileModalState extends State<UserProfileModal> {
     }
   }
 
+  String? _validarCampos() {
+    if (_nombreCtrl.text.trim().isEmpty) return 'El nombre no puede estar vacío.';
+    if (_apellidosCtrl.text.trim().isEmpty) return 'Los apellidos no pueden estar vacíos.';
+    if (_telefonoCtrl.text.trim().isEmpty) return 'El teléfono no puede estar vacío.';
+    if (_emailCtrl.text.trim().isEmpty) return 'El email no puede estar vacío.';
+    final clabe = _clabeCtrl.text.trim();
+    if (clabe.isNotEmpty && clabe.length != 18) return 'La CLABE debe tener exactamente 18 dígitos.';
+    return null;
+  }
+
   void _handleSave() async {
+    final error = _validarCampos();
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
     try {
       final body = <String, dynamic>{
         'nombre':    _nombreCtrl.text.trim(),
