@@ -445,13 +445,13 @@ class _HeroImage extends StatelessWidget {
           Positioned(
             bottom: 0, left: 0, right: 0,
             child: Container(
-              height: 110,
+              height: 80,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.bottomCenter,
                   end: Alignment.topCenter,
                   colors: [
-                    Colors.black.withValues(alpha: 0.65),
+                    Colors.black.withValues(alpha: 0.45),
                     Colors.transparent,
                   ],
                 ),
