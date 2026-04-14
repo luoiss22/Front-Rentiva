@@ -194,24 +194,37 @@ class _StatsGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final s = stats;
+    const rowHeight = 110.0;
     return Column(
       children: [
-        GridView.count(
-          crossAxisCount: 2,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-          childAspectRatio: 1.3,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          children: [
-            ...stats.map((s) => _StatCard(data: s)),
-            _QuickActionButton(
-              color: const Color(0xFF225378),
-              icon: Icons.home_outlined,
-              label: '+ Propiedad',
-              onTap: () => Navigator.pushNamed(context, '/propiedades/nueva'),
-            ),
-          ],
+        IntrinsicHeight(
+          child: Row(
+            children: [
+              Expanded(child: s.length > 0 ? _StatCard(data: s[0]) : const SizedBox()),
+              const SizedBox(width: 12),
+              Expanded(child: s.length > 1 ? _StatCard(data: s[1]) : const SizedBox()),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: rowHeight,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: s.length > 2 ? _StatCard(data: s[2]) : const SizedBox()),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _QuickActionButton(
+                  color: const Color(0xFF225378),
+                  icon: Icons.home_outlined,
+                  label: '+ Propiedad',
+                  onTap: () => Navigator.pushNamed(context, '/propiedades/nueva'),
+                ),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 12),
         SizedBox(

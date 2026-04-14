@@ -445,13 +445,13 @@ class _HeroImage extends StatelessWidget {
           Positioned(
             bottom: 0, left: 0, right: 0,
             child: Container(
-              height: 80,
+              height: 110,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.bottomCenter,
                   end: Alignment.topCenter,
                   colors: [
-                    const Color(0xFFF8FAFC),
+                    Colors.black.withValues(alpha: 0.65),
                     Colors.transparent,
                   ],
                 ),
@@ -484,19 +484,34 @@ class _HeroImage extends StatelessWidget {
                 Text(
                   propiedad.nombre,
                   style: const TextStyle(
-                    color: Color(0xFF225378),
+                    color: Colors.white,
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
                     height: 1.2,
+                    shadows: [
+                      Shadow(
+                        color: Colors.black54,
+                        blurRadius: 6,
+                        offset: Offset(0, 1),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   '${propiedad.direccion}, ${propiedad.ciudad}',
                   style: const TextStyle(
-                      color: Color(0xFF1695A3),
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500),
+                    color: Color(0xFFACF0F2),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    shadows: [
+                      Shadow(
+                        color: Colors.black54,
+                        blurRadius: 4,
+                        offset: Offset(0, 1),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
