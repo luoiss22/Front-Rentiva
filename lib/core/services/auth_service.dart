@@ -1,3 +1,6 @@
+import 'dart:io';
+import 'dart:io';
+import 'dart:typed_data';
 import 'api_client.dart';
 import 'storage_service.dart';
 import '../models/propietario_model.dart';
@@ -49,8 +52,11 @@ class AuthService {
     required String password,
     String? fechaNacimiento,
     String? folioIne,
+    File? fotoFile,
+    Uint8List? fotoWebBytes,
+    String? fotoWebName,
   }) async {
-    final payload = <String, dynamic>{
+    final fields = <String, String>{
       'nombre': nombre,
       'apellidos': apellidos,
       'email': email,
@@ -58,15 +64,20 @@ class AuthService {
       'password': password,
     };
     if (fechaNacimiento != null && fechaNacimiento.isNotEmpty) {
-      payload['fecha_nacimiento'] = fechaNacimiento;
+      fields['fecha_nacimiento'] = fechaNacimiento;
     }
     if (folioIne != null && folioIne.isNotEmpty) {
-      payload['folio_ine'] = folioIne;
+      fields['folio_ine'] = folioIne;
     }
 
-    final data = await ApiClient.post(
+    final data = await ApiClient.multipart(
+      'POST',
       '/auth/registro/',
-      payload,
+      fields: fields,
+      file: fotoFile,
+      webFileBytes: fotoWebBytes,
+      webFileName: fotoWebName,
+      fileField: 'foto',
       auth: false,
     );
     return _processAuthResponse(data);

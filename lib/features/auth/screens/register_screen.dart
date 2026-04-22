@@ -1,5 +1,9 @@
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 // Widgets reutilizables desde core/
@@ -32,6 +36,11 @@ class _RegisterScreenState extends State<RegisterScreen>
 
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
+
+  // Imagen de perfil seleccionada
+  File? _fotoFile;           // móvil/desktop
+  Uint8List? _fotoWebBytes;  // web
+  String? _fotoWebName;      // web
 
   late AnimationController _animController;
   late Animation<double> _fadeAnimation;
@@ -122,6 +131,9 @@ class _RegisterScreenState extends State<RegisterScreen>
         password: _passwordController.text,
         fechaNacimiento: fechaBackend,
         folioIne: _INEController.text.trim().toUpperCase(),
+        fotoFile: _fotoFile,
+        fotoWebBytes: _fotoWebBytes,
+        fotoWebName: _fotoWebName,
       );
 
       if (!mounted) return;
@@ -336,8 +348,21 @@ class _RegisterScreenState extends State<RegisterScreen>
                             // ── Foto / Identificación ─────────────────────
                             AppImagePicker(
                               label: 'Subir Foto de Perfil',
-                              onImageSelected: (file) {
-                                // TODO: guardar referencia al archivo
+                              onImageSelected: (XFile xfile) async {
+                                if (kIsWeb) {
+                                  final bytes = await xfile.readAsBytes();
+                                  setState(() {
+                                    _fotoWebBytes = bytes;
+                                    _fotoWebName = xfile.name;
+                                    _fotoFile = null;
+                                  });
+                                } else {
+                                  setState(() {
+                                    _fotoFile = File(xfile.path);
+                                    _fotoWebBytes = null;
+                                    _fotoWebName = null;
+                                  });
+                                }
                               },
                             ),
                             const SizedBox(height: 16),

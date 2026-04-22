@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import '../models/propietario_model.dart';
 import '../models/admin_model.dart';
@@ -98,6 +100,9 @@ class AuthProvider extends ChangeNotifier {
     required String password,
     String? fechaNacimiento,
     String? folioIne,
+    File? fotoFile,
+    Uint8List? fotoWebBytes,
+    String? fotoWebName,
   }) async {
     final result = await AuthService.register(
       nombre: nombre,
@@ -107,6 +112,9 @@ class AuthProvider extends ChangeNotifier {
       password: password,
       fechaNacimiento: fechaNacimiento,
       folioIne: folioIne,
+      fotoFile: fotoFile,
+      fotoWebBytes: fotoWebBytes,
+      fotoWebName: fotoWebName,
     );
     _usuario = result.usuario;
     _userType = result.userType;
