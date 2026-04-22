@@ -130,6 +130,16 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Elimina la cuenta actual y limpia estado local.
+  Future<void> eliminarCuenta({
+    required String passwordActual,
+  }) async {
+    await AuthService.eliminarCuenta(passwordActual: passwordActual);
+    _usuario = null;
+    _userType = 'propietario';
+    notifyListeners();
+  }
+
   /// Refresca los datos del usuario desde el backend.
   Future<void> refrescarPerfil() async {
     try {

@@ -253,6 +253,7 @@ class _UserProfileModalState extends State<UserProfileModal> {
 
   String? _errorMsg;
   bool _subiendoFoto = false;
+  bool _eliminandoCuenta = false;
 
   Future<void> _pickImage() async {
     final XFile? image =
@@ -719,6 +720,167 @@ class _UserProfileModalState extends State<UserProfileModal> {
     );
   }
 
+  Future<void> _handleDeleteAccount(BuildContext context) async {
+    final navigator = Navigator.of(context, rootNavigator: true);
+    final authProvider = context.read<AuthProvider>();
+    final passwordCtrl = TextEditingController();
+    bool obscurePassword = true;
+
+    final String? passwordActual = await showDialog<String>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        String? errorMsg;
+        return StatefulBuilder(
+          builder: (ctx, setD) {
+            return AlertDialog(
+              title: const Text(
+                '¿Eliminar cuenta?',
+                style: TextStyle(
+                  color: Color(0xFF225378),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Esta acción es permanente. Ingresa tu contraseña actual para continuar.',
+                    style: TextStyle(fontSize: 14),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: passwordCtrl,
+                    obscureText: obscurePassword,
+                    style: const TextStyle(fontSize: 13, color: Color(0xFF225378)),
+                    decoration: InputDecoration(
+                      labelText: 'Contraseña actual',
+                      labelStyle: const TextStyle(fontSize: 12, color: Colors.grey),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          obscurePassword ? Icons.visibility_off : Icons.visibility,
+                          size: 18,
+                          color: Colors.grey,
+                        ),
+                        onPressed: () {
+                          setD(() => obscurePassword = !obscurePassword);
+                        },
+                      ),
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                      contentPadding: const EdgeInsets.symmetric(
+                        vertical: 12,
+                        horizontal: 12,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: Colors.grey.shade200),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: Colors.grey.shade200),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Color(0xFF1695A3), width: 2),
+                      ),
+                    ),
+                  ),
+                  if (errorMsg != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      errorMsg!,
+                      style: const TextStyle(color: Colors.red, fontSize: 12),
+                    ),
+                  ],
+                ],
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text(
+                    'Cancelar',
+                    style: TextStyle(
+                      color: Colors.grey,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final pwd = passwordCtrl.text.trim();
+                    if (pwd.isEmpty) {
+                      setD(() => errorMsg = 'Ingresa tu contraseña actual');
+                      return;
+                    }
+                    Navigator.pop(dialogContext, pwd);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFD64545),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'Eliminar',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    passwordCtrl.dispose();
+    if (passwordActual == null || passwordActual.isEmpty) return;
+
+    if (mounted) setState(() => _eliminandoCuenta = true);
+    try {
+      await authProvider.eliminarCuenta(passwordActual: passwordActual);
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cuenta eliminada correctamente'),
+          backgroundColor: Color(0xFF1695A3),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+
+      await Future.delayed(const Duration(milliseconds: 850));
+      if (!mounted) return;
+      navigator.pushNamedAndRemoveUntil('/', (route) => false);
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.message),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se pudo eliminar la cuenta'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _eliminandoCuenta = false);
+    }
+  }
+
   String get _initials {
     final n = _userData['nombre'] ?? '';
     final a = _userData['apellidos'] ?? '';
@@ -864,6 +1026,38 @@ class _UserProfileModalState extends State<UserProfileModal> {
                       _userData['cargo']!,
                       style: const TextStyle(
                           color: Color(0xFF1695A3), fontSize: 12),
+                    ),
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      onPressed: (_subiendoFoto || _eliminandoCuenta)
+                          ? null
+                          : () => _handleDeleteAccount(context),
+                      icon: _eliminandoCuenta
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Color(0xFFD64545),
+                              ),
+                            )
+                          : const Icon(Icons.delete_forever_outlined, size: 16),
+                      label: Text(
+                        _eliminandoCuenta ? 'Eliminando...' : 'Eliminar cuenta',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFFD64545),
+                        side: const BorderSide(color: Color(0xFFD64545), width: 1.2),
+                        backgroundColor: Colors.white.withOpacity(0.9),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                      ),
                     ),
                   ],
                 ),

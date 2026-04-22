@@ -117,6 +117,25 @@ class AuthService {
     }
   }
 
+  /// DELETE /auth/eliminar-cuenta/
+  static Future<void> eliminarCuenta({
+    required String passwordActual,
+  }) async {
+    final refresh = await StorageService.getRefreshToken();
+    final body = <String, dynamic>{
+      'password_actual': passwordActual,
+    };
+    if (refresh != null && refresh.isNotEmpty) {
+      body['refresh'] = refresh;
+    }
+
+    await ApiClient.delete(
+      '/auth/eliminar-cuenta/',
+      body: body,
+    );
+    await StorageService.clear();
+  }
+
   // ── Helper interno ────────────────────────────────────────────
   static Future<AuthResult> _processAuthResponse(dynamic data) async {
     final userType = data['user_type'] as String? ?? 'propietario';
