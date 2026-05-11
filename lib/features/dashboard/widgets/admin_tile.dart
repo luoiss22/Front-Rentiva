@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'admin_models.dart';
+import '../../../core/services/api_client.dart';
 
 // ─── TILE ADMIN ───────────────────────────────────────────────────────────────
 class AdminTile extends StatelessWidget {
@@ -38,7 +39,7 @@ class AdminTile extends StatelessWidget {
             ],
           ),
           child: Row(children: [
-            // Gradient avatar
+            // Avatar con foto
             Container(
               width: 44,
               height: 44,
@@ -52,12 +53,33 @@ class AdminTile extends StatelessWidget {
                 ),
                 shape: BoxShape.circle,
               ),
-              child: Center(
-                  child: Text(admin.inicial,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18))),
+              child: ClipOval(
+                child: () {
+                  final url = admin.fotoUrl != null && admin.fotoUrl!.isNotEmpty
+                      ? ApiClient.resolveMediaUrl(admin.fotoUrl)
+                      : null;
+                  if (url != null && url.isNotEmpty) {
+                    return Image.network(
+                      url,
+                      width: 44, height: 44,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Center(
+                        child: Text(admin.inicial,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18)),
+                      ),
+                    );
+                  }
+                  return Center(
+                    child: Text(admin.inicial,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18)));
+                }(),
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(

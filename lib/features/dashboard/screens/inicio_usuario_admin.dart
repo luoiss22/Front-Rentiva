@@ -368,9 +368,29 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                   color: u.activo ? const Color(0xFFACF0F2) : Colors.grey.shade100,
                   shape: BoxShape.circle,
                 ),
-                child: Center(child: Text(u.inicial,
-                    style: TextStyle(color: u.activo ? const Color(0xFF1695A3) : Colors.grey,
-                        fontWeight: FontWeight.bold, fontSize: 22))),
+                child: ClipOval(
+                  child: () {
+                    final url = u.fotoUrl != null && u.fotoUrl!.isNotEmpty
+                        ? u.fotoUrl
+                        : null;
+                    if (url != null) {
+                      return Image.network(
+                        url,
+                        width: 56, height: 56,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Center(
+                          child: Text(u.inicial,
+                              style: TextStyle(
+                                  color: u.activo ? const Color(0xFF1695A3) : Colors.grey,
+                                  fontWeight: FontWeight.bold, fontSize: 22)),
+                        ),
+                      );
+                    }
+                    return Center(child: Text(u.inicial,
+                        style: TextStyle(color: u.activo ? const Color(0xFF1695A3) : Colors.grey,
+                            fontWeight: FontWeight.bold, fontSize: 22)));
+                  }(),
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -424,8 +444,28 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                   ),
                   shape: BoxShape.circle,
                 ),
-                child: Center(child: Text(a.inicial,
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 24))),
+                child: ClipOval(
+                  child: () {
+                    final url = a.fotoUrl != null && a.fotoUrl!.isNotEmpty
+                        ? ApiClient.resolveMediaUrl(a.fotoUrl)
+                        : null;
+                    if (url != null && url.isNotEmpty) {
+                      return Image.network(
+                        url,
+                        width: 60, height: 60,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Center(
+                          child: Text(a.inicial,
+                              style: const TextStyle(color: Colors.white,
+                                  fontWeight: FontWeight.bold, fontSize: 24)),
+                        ),
+                      );
+                    }
+                    return Center(child: Text(a.inicial,
+                        style: const TextStyle(color: Colors.white,
+                            fontWeight: FontWeight.bold, fontSize: 24)));
+                  }(),
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

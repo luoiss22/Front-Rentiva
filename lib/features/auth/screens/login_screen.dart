@@ -247,21 +247,6 @@ void _onSubmit() async {
                               ),
                               const SizedBox(height: 12),
 
-                              // Olvidaste contraseña
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: GestureDetector(
-                                  onTap: () {},
-                                  child: const Text(
-                                    '¿Olvidaste tu contraseña?',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF1695A3),
-                                    ),
-                                  ),
-                                ),
-                              ),
                               const SizedBox(height: 24),
 
                               // Botón submit

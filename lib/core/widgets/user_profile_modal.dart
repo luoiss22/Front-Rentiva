@@ -1121,39 +1121,42 @@ class _UserProfileModalState extends State<UserProfileModal> {
         ),
         const SizedBox(height: 16),
 
-        // ── Datos Bancarios (collapsible) ─────────────────────────────────
-        _CollapsibleSection(
-          icon: Icons.account_balance_outlined,
-          label: 'Datos Bancarios',
-          expanded: _showBancario,
-          onToggle: () =>
-              setState(() => _showBancario = !_showBancario),
-        ),
-        if (_showBancario) ...[
-          const SizedBox(height: 8),
-          _InfoRow(icon: Icons.numbers_outlined,          label: 'CLABE Interbancaria', value: _bancario?.clabe ?? '—'),
-          _InfoRow(icon: Icons.account_balance_outlined,  label: 'Banco',               value: _bancario?.banco ?? '—'),
-        ],
-        const SizedBox(height: 12),
+        // ── Datos Bancarios y Fiscales (solo propietarios) ────────────────
+        if (_userData['cargo'] != 'admin') ...[
+          // ── Datos Bancarios (collapsible) ───────────────────────────────
+          _CollapsibleSection(
+            icon: Icons.account_balance_outlined,
+            label: 'Datos Bancarios',
+            expanded: _showBancario,
+            onToggle: () =>
+                setState(() => _showBancario = !_showBancario),
+          ),
+          if (_showBancario) ...[
+            const SizedBox(height: 8),
+            _InfoRow(icon: Icons.numbers_outlined,          label: 'CLABE Interbancaria', value: _bancario?.clabe ?? '—'),
+            _InfoRow(icon: Icons.account_balance_outlined,  label: 'Banco',               value: _bancario?.banco ?? '—'),
+          ],
+          const SizedBox(height: 12),
 
-        // ── Datos Fiscales (collapsible) ──────────────────────────────────
-        _CollapsibleSection(
-          icon: Icons.receipt_long_outlined,
-          label: 'Datos Fiscales (SAT)',
-          expanded: _showFiscal,
-          onToggle: () =>
-              setState(() => _showFiscal = !_showFiscal),
-        ),
-        if (_showFiscal) ...[
-          const SizedBox(height: 8),
-          _InfoRow(icon: Icons.business_outlined,        label: 'Razón Social',       value: _fiscal?.nombreORazonSocial ?? '—'),
-          _InfoRow(icon: Icons.fingerprint,               label: 'RFC',                value: _fiscal?.rfc ?? '—'),
-          _InfoRow(icon: Icons.account_balance_outlined,  label: 'Régimen Fiscal',     value: _fiscal?.regimenFiscal ?? '—'),
-          _InfoRow(icon: Icons.description_outlined,      label: 'Uso CFDI',           value: _fiscal?.usoCfdi ?? '—'),
-          _InfoRow(icon: Icons.location_on_outlined,      label: 'Código Postal',      value: _fiscal?.codigoPostal ?? '—'),
-          _InfoRow(icon: Icons.mail_outline,              label: 'Correo Facturación', value: _fiscal?.correoFacturacion ?? '—'),
+          // ── Datos Fiscales (collapsible) ──────────────────────────────────
+          _CollapsibleSection(
+            icon: Icons.receipt_long_outlined,
+            label: 'Datos Fiscales (SAT)',
+            expanded: _showFiscal,
+            onToggle: () =>
+                setState(() => _showFiscal = !_showFiscal),
+          ),
+          if (_showFiscal) ...[
+            const SizedBox(height: 8),
+            _InfoRow(icon: Icons.business_outlined,        label: 'Razón Social',       value: _fiscal?.nombreORazonSocial ?? '—'),
+            _InfoRow(icon: Icons.fingerprint,               label: 'RFC',                value: _fiscal?.rfc ?? '—'),
+            _InfoRow(icon: Icons.account_balance_outlined,  label: 'Régimen Fiscal',     value: _fiscal?.regimenFiscal ?? '—'),
+            _InfoRow(icon: Icons.description_outlined,      label: 'Uso CFDI',           value: _fiscal?.usoCfdi ?? '—'),
+            _InfoRow(icon: Icons.location_on_outlined,      label: 'Código Postal',      value: _fiscal?.codigoPostal ?? '—'),
+            _InfoRow(icon: Icons.mail_outline,              label: 'Correo Facturación', value: _fiscal?.correoFacturacion ?? '—'),
+          ],
+          const SizedBox(height: 12),
         ],
-        const SizedBox(height: 20),
 
         // ── Botón editar ──────────────────────────────────────────────────
         SizedBox(
@@ -1258,95 +1261,98 @@ class _UserProfileModalState extends State<UserProfileModal> {
         ),
         const SizedBox(height: 20),
 
-        // ── Sección Datos Bancarios ───────────────────────────────────────
-        _SectionHeader(
-          icon: Icons.account_balance_outlined,
-          label: 'Datos Bancarios',
-          color: const Color(0xFFEB7F00),
-          bgColor: const Color(0xFFFFF7ED),
-          borderColor: const Color(0xFFEB7F00),
-        ),
-        const SizedBox(height: 12),
+        // ── Secciones bancaria y fiscal (solo propietarios) ───────────────
+        if (_userData['cargo'] != 'admin') ...[
+          // ── Sección Datos Bancarios ─────────────────────────────────────
+          _SectionHeader(
+            icon: Icons.account_balance_outlined,
+            label: 'Datos Bancarios',
+            color: const Color(0xFFEB7F00),
+            bgColor: const Color(0xFFFFF7ED),
+            borderColor: const Color(0xFFEB7F00),
+          ),
+          const SizedBox(height: 12),
 
-        // CLABE
-        _EditField(
-          label: 'CLABE Interbancaria',
-          controller: _clabeCtrl,
-          keyboardType: TextInputType.number,
-          inputFormatters: [
-            FilteringTextInputFormatter.digitsOnly,
-            LengthLimitingTextInputFormatter(18),
-          ],
-          helperText: '18 dígitos',
-        ),
-        const SizedBox(height: 12),
+          // CLABE
+          _EditField(
+            label: 'CLABE Interbancaria',
+            controller: _clabeCtrl,
+            keyboardType: TextInputType.number,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(18),
+            ],
+            helperText: '18 dígitos',
+          ),
+          const SizedBox(height: 12),
 
-        // Banco dropdown
-        _buildBancoDropdown(),
-        const SizedBox(height: 20),
+          // Banco dropdown
+          _buildBancoDropdown(),
+          const SizedBox(height: 20),
 
-        // ── Sección Datos Fiscales ────────────────────────────────────────
-        _SectionHeader(
-          icon: Icons.receipt_long_outlined,
-          label: 'Datos Fiscales (SAT)',
-          color: const Color(0xFF1695A3),
-          bgColor: const Color(0xFFF3FFE2),
-          borderColor: const Color(0xFF1695A3),
-        ),
-        const SizedBox(height: 12),
+          // ── Sección Datos Fiscales ──────────────────────────────────────
+          _SectionHeader(
+            icon: Icons.receipt_long_outlined,
+            label: 'Datos Fiscales (SAT)',
+            color: const Color(0xFF1695A3),
+            bgColor: const Color(0xFFF3FFE2),
+            borderColor: const Color(0xFF1695A3),
+          ),
+          const SizedBox(height: 12),
 
-        // Razón Social
-        _EditField(
-          label: 'Nombre o Razón Social',
-          controller: _razonSocialCtrl,
-        ),
-        const SizedBox(height: 12),
+          // Razón Social
+          _EditField(
+            label: 'Nombre o Razón Social',
+            controller: _razonSocialCtrl,
+          ),
+          const SizedBox(height: 12),
 
-        // RFC
-        _EditField(
-          label: 'RFC',
-          controller: _rfcCtrl,
-          inputFormatters: [
-            LengthLimitingTextInputFormatter(13),
-            FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9&Ññ]')),
-            UpperCaseTextFormatter(),
-          ],
-        ),
-        const SizedBox(height: 12),
+          // RFC
+          _EditField(
+            label: 'RFC',
+            controller: _rfcCtrl,
+            inputFormatters: [
+              LengthLimitingTextInputFormatter(13),
+              FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9&Ññ]')),
+              UpperCaseTextFormatter(),
+            ],
+          ),
+          const SizedBox(height: 12),
 
-        // Régimen Fiscal
-        _buildRegimenDropdown(),
-        const SizedBox(height: 12),
+          // Régimen Fiscal
+          _buildRegimenDropdown(),
+          const SizedBox(height: 12),
 
-        // Uso CFDI
-        _buildUsoCfdiDropdown(),
-        const SizedBox(height: 12),
+          // Uso CFDI
+          _buildUsoCfdiDropdown(),
+          const SizedBox(height: 12),
 
-        // CP + Correo en fila
-        Row(
-          children: [
-            Expanded(
-              child: _EditField(
-                label: 'Código Postal',
-                controller: _cpCtrl,
-                keyboardType: TextInputType.number,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(5),
-                ],
+          // CP + Correo en fila
+          Row(
+            children: [
+              Expanded(
+                child: _EditField(
+                  label: 'Código Postal',
+                  controller: _cpCtrl,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(5),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _EditField(
-                label: 'Correo Facturación',
-                controller: _correoFiscalCtrl,
-                keyboardType: TextInputType.emailAddress,
+              const SizedBox(width: 12),
+              Expanded(
+                child: _EditField(
+                  label: 'Correo Facturación',
+                  controller: _correoFiscalCtrl,
+                  keyboardType: TextInputType.emailAddress,
+                ),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 20),
+            ],
+          ),
+          const SizedBox(height: 20),
+        ],
 
         // ── Error inline ──────────────────────────────────────────────────
         if (_errorMsg != null) ...[
