@@ -1358,18 +1358,30 @@ class _EditarInquilinoScreenState extends State<EditarInquilinoScreen> {
 
   // ── PROPIEDAD DROPDOWN ───────────────────────────────────────────────────
   Widget _buildContratoDropdown() {
+    // Si el inquilino ya tiene un contrato activo con una propiedad asignada,
+    // no se permite cambiar la propiedad desde esta pantalla.
+    final bloqueada = _contratoId != null && _propiedadId != null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Propiedad a rentar',
-            style: TextStyle(
-                fontSize: 11, fontWeight: FontWeight.bold,
-                color: Color(0xFF225378))),
+        Row(
+          children: [
+            const Text('Propiedad a rentar',
+                style: TextStyle(
+                    fontSize: 11, fontWeight: FontWeight.bold,
+                    color: Color(0xFF225378))),
+            if (bloqueada) ...[
+              const SizedBox(width: 6),
+              Icon(Icons.lock_outline,
+                  size: 13, color: Colors.grey.shade500),
+            ],
+          ],
+        ),
         const SizedBox(height: 6),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: bloqueada ? const Color(0xFFF1F5F9) : Colors.white,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: Colors.grey.shade200),
           ),
@@ -1387,11 +1399,15 @@ class _EditarInquilinoScreenState extends State<EditarInquilinoScreen> {
                           fontSize: 13)),
                 ],
               ),
-              icon: const Icon(Icons.keyboard_arrow_down,
-                  color: Color(0xFF1695A3), size: 20),
+              icon: Icon(Icons.keyboard_arrow_down,
+                  color: bloqueada
+                      ? Colors.grey.shade400
+                      : const Color(0xFF1695A3),
+                  size: 20),
               style: const TextStyle(
                   fontSize: 13, color: Color(0xFF225378)),
-              onChanged: (v) => setState(() => _propiedadId = v),
+              onChanged:
+                  bloqueada ? null : (v) => setState(() => _propiedadId = v),
               items: _propiedades.map((p) => DropdownMenuItem<int>(
                     value: p['id'] as int,
                     child: Row(
@@ -1409,6 +1425,14 @@ class _EditarInquilinoScreenState extends State<EditarInquilinoScreen> {
             ),
           ),
         ),
+        if (bloqueada) ...[
+          const SizedBox(height: 6),
+          Text(
+            'La propiedad asignada no se puede cambiar mientras el contrato esté activo. Cancela el contrato desde la propiedad para liberarla.',
+            style: TextStyle(
+                fontSize: 10.5, color: Colors.grey.shade600, height: 1.3),
+          ),
+        ],
       ],
     );
   }

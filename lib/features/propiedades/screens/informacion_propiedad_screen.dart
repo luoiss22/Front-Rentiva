@@ -47,6 +47,7 @@ class InquilinoResumen {
   final String iniciales;
   final String estadoPago;
   final String desde;
+  final String? fotoUrl;
 
   const InquilinoResumen({
     required this.contratoId,
@@ -56,6 +57,7 @@ class InquilinoResumen {
     required this.iniciales,
     required this.estadoPago,
     required this.desde,
+    this.fotoUrl,
   });
 }
 
@@ -257,6 +259,7 @@ class _InformacionPropiedadScreenState
             iniciales: iniciales,
             estadoPago: 'Activo',
             desde: contrato['fecha_inicio'] ?? '',
+            fotoUrl: ApiClient.resolveMediaUrl(inq['foto'] as String?),
           );
         }
       } catch (e) {
@@ -963,12 +966,29 @@ class _TabInquilinoState extends State<_TabInquilino> {
                       blurRadius: 8)
                 ],
               ),
-              child: Center(
-                child: Text(inquilino!.iniciales,
-                    style: const TextStyle(
-                        color: Color(0xFF1695A3),
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold)),
+              child: ClipOval(
+                child: (inquilino!.fotoUrl != null &&
+                        inquilino!.fotoUrl!.isNotEmpty)
+                    ? Image.network(
+                        inquilino!.fotoUrl!,
+                        width: 76,
+                        height: 76,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Center(
+                          child: Text(inquilino!.iniciales,
+                              style: const TextStyle(
+                                  color: Color(0xFF1695A3),
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.bold)),
+                        ),
+                      )
+                    : Center(
+                        child: Text(inquilino!.iniciales,
+                            style: const TextStyle(
+                                color: Color(0xFF1695A3),
+                                fontSize: 26,
+                                fontWeight: FontWeight.bold)),
+                      ),
               ),
             ),
             const SizedBox(height: 10),

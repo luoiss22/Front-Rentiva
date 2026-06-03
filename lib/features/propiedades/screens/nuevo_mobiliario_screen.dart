@@ -30,8 +30,21 @@ class _NuevoMobiliarioScreenState extends State<NuevoMobiliarioScreen> {
 
   // ── Controladores — Modelo Mobiliario ──────────────────────────────────────
   final _nombreCtrl      = TextEditingController();
-  final _tipoCtrl        = TextEditingController();
   final _descripcionCtrl = TextEditingController();
+
+  // Tipo / categoría (select)
+  String? _tipoSeleccionado;
+
+  static const List<String> _tiposMobiliario = [
+    'Mueble',
+    'Electrodoméstico',
+    'Electrónico',
+    'Línea blanca',
+    'Decoración',
+    'Iluminación',
+    'Cocina',
+    'Otro',
+  ];
 
   // ── Controladores — Modelo PropiedadMobiliario ────────────────────────────
   final _cantidadCtrl      = TextEditingController(text: '1');
@@ -50,7 +63,6 @@ class _NuevoMobiliarioScreenState extends State<NuevoMobiliarioScreen> {
   @override
   void dispose() {
     _nombreCtrl.dispose();
-    _tipoCtrl.dispose();
     _descripcionCtrl.dispose();
     _cantidadCtrl.dispose();
     _valorEstimadoCtrl.dispose();
@@ -71,6 +83,16 @@ class _NuevoMobiliarioScreenState extends State<NuevoMobiliarioScreen> {
 
   void _onSubmit() async {
     if (_formKey.currentState!.validate()) {
+      if (_tipoSeleccionado == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Selecciona el tipo de artículo'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
       if (_estadoSeleccionado == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -88,7 +110,7 @@ class _NuevoMobiliarioScreenState extends State<NuevoMobiliarioScreen> {
         final mob = hasImage
             ? await MobiliarioService.crearConFoto(
                 nombre: _nombreCtrl.text,
-                tipo: _tipoCtrl.text,
+                tipo: _tipoSeleccionado ?? '',
                 descripcion: _descripcionCtrl.text,
                 file: _imageFile,
                 webFileBytes: _webImage,
@@ -96,7 +118,7 @@ class _NuevoMobiliarioScreenState extends State<NuevoMobiliarioScreen> {
               )
             : await MobiliarioService.crear({
                 'nombre':      _nombreCtrl.text,
-                'tipo':        _tipoCtrl.text,
+                'tipo':        _tipoSeleccionado ?? '',
                 'descripcion': _descripcionCtrl.text,
               });
 
@@ -218,15 +240,8 @@ class _NuevoMobiliarioScreenState extends State<NuevoMobiliarioScreen> {
               ),
               const SizedBox(height: 12),
 
-              // Tipo
-              _buildField(
-                label: 'Tipo / Categoría',
-                controller: _tipoCtrl,
-                hint: 'Ej. Mueble, Electrodoméstico, Electrónico...',
-                icon: Icons.category_outlined,
-                maxLength: 100,
-                validator: (v) => v!.isEmpty ? 'Requerido' : null,
-              ),
+              // Tipo / Categoría (select)
+              _buildTipoDropdown(),
               const SizedBox(height: 12),
 
               // Descripción
@@ -314,6 +329,64 @@ class _NuevoMobiliarioScreenState extends State<NuevoMobiliarioScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  // ── SELECTOR DE TIPO / CATEGORÍA ───────────────────────────────────────────
+  Widget _buildTipoDropdown() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Tipo / Categoría',
+          style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF225378)),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: _tipoSeleccionado,
+              isExpanded: true,
+              hint: Row(
+                children: [
+                  const Icon(Icons.category_outlined,
+                      color: Color(0xFF1695A3), size: 18),
+                  const SizedBox(width: 8),
+                  Text('Seleccionar tipo',
+                      style: TextStyle(
+                          color: Colors.grey.shade500, fontSize: 13)),
+                ],
+              ),
+              icon: const Icon(Icons.keyboard_arrow_down,
+                  color: Color(0xFF1695A3)),
+              style: const TextStyle(fontSize: 13, color: Color(0xFF225378)),
+              onChanged: (v) => setState(() => _tipoSeleccionado = v),
+              items: _tiposMobiliario
+                  .map((t) => DropdownMenuItem(
+                        value: t,
+                        child: Row(
+                          children: [
+                            const Icon(Icons.category_outlined,
+                                color: Color(0xFF1695A3), size: 16),
+                            const SizedBox(width: 8),
+                            Text(t, style: const TextStyle(fontSize: 13)),
+                          ],
+                        ),
+                      ))
+                  .toList(),
+            ),
+          ),
+        ),
+      ],
     );
   }
 

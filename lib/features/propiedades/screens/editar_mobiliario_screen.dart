@@ -38,10 +38,23 @@ class _EditarMobiliarioScreenState extends State<EditarMobiliarioScreen> {
 
   // Controladores
   late TextEditingController _nombreCtrl;
-  late TextEditingController _tipoCtrl;
   late TextEditingController _descripcionCtrl;
   late TextEditingController _cantidadCtrl;
   late TextEditingController _valorEstimadoCtrl;
+
+  // Tipo / categoría (select)
+  String? _tipoSeleccionado;
+
+  static const List<String> _tiposMobiliario = [
+    'Mueble',
+    'Electrodoméstico',
+    'Electrónico',
+    'Línea blanca',
+    'Decoración',
+    'Iluminación',
+    'Cocina',
+    'Otro',
+  ];
 
   String? _estadoSeleccionado;
   bool _cargando = true;
@@ -57,7 +70,6 @@ class _EditarMobiliarioScreenState extends State<EditarMobiliarioScreen> {
   void initState() {
     super.initState();
     _nombreCtrl        = TextEditingController();
-    _tipoCtrl          = TextEditingController();
     _descripcionCtrl   = TextEditingController();
     _cantidadCtrl      = TextEditingController();
     _valorEstimadoCtrl = TextEditingController();
@@ -73,7 +85,7 @@ class _EditarMobiliarioScreenState extends State<EditarMobiliarioScreen> {
       if (!mounted) return;
       setState(() {
         _nombreCtrl.text       = mob.nombre;
-        _tipoCtrl.text         = mob.tipo;
+        _tipoSeleccionado      = mob.tipo.isNotEmpty ? mob.tipo : null;
         _descripcionCtrl.text  = mob.descripcion ?? '';
         _mobiliarioId          = mob.id;
         _fotoActualUrl         = mob.fotoUrl;
@@ -99,7 +111,6 @@ class _EditarMobiliarioScreenState extends State<EditarMobiliarioScreen> {
   @override
   void dispose() {
     _nombreCtrl.dispose();
-    _tipoCtrl.dispose();
     _descripcionCtrl.dispose();
     _cantidadCtrl.dispose();
     _valorEstimadoCtrl.dispose();
@@ -126,6 +137,16 @@ class _EditarMobiliarioScreenState extends State<EditarMobiliarioScreen> {
 
   void _onSubmit() async {
     if (_formKey.currentState!.validate()) {
+      if (_tipoSeleccionado == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Selecciona el tipo de artículo'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
       if (_estadoSeleccionado == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -146,7 +167,7 @@ class _EditarMobiliarioScreenState extends State<EditarMobiliarioScreen> {
           await MobiliarioService.actualizarConFoto(
             _mobiliarioId!,
             nombre: _nombreCtrl.text,
-            tipo: _tipoCtrl.text,
+            tipo: _tipoSeleccionado ?? '',
             descripcion: _descripcionCtrl.text,
             file: _imageFile,
             webFileBytes: _webImage,
@@ -157,7 +178,7 @@ class _EditarMobiliarioScreenState extends State<EditarMobiliarioScreen> {
             _mobiliarioId!,
             {
               'nombre': _nombreCtrl.text,
-              'tipo': _tipoCtrl.text,
+              'tipo': _tipoSeleccionado ?? '',
               'descripcion': _descripcionCtrl.text,
             },
           );
@@ -354,15 +375,8 @@ class _EditarMobiliarioScreenState extends State<EditarMobiliarioScreen> {
               ),
               const SizedBox(height: 12),
 
-              // Tipo
-              _buildField(
-                label: 'Tipo / Categoría',
-                controller: _tipoCtrl,
-                hint: 'Ej. Mueble, Electrodoméstico, Electrónico...',
-                icon: Icons.category_outlined,
-                maxLength: 100,
-                validator: (v) => v!.isEmpty ? 'Requerido' : null,
-              ),
+              // Tipo / Categoría (select)
+              _buildTipoDropdown(),
               const SizedBox(height: 12),
 
               // Descripción
@@ -447,6 +461,70 @@ class _EditarMobiliarioScreenState extends State<EditarMobiliarioScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  // ── SELECTOR DE TIPO / CATEGORÍA ───────────────────────────────────────────
+  Widget _buildTipoDropdown() {
+    final tipos = [..._tiposMobiliario];
+    if (_tipoSeleccionado != null &&
+        _tipoSeleccionado!.isNotEmpty &&
+        !tipos.contains(_tipoSeleccionado)) {
+      tipos.insert(0, _tipoSeleccionado!);
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Tipo / Categoría',
+          style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF225378)),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: _tipoSeleccionado,
+              isExpanded: true,
+              hint: Row(
+                children: [
+                  const Icon(Icons.category_outlined,
+                      color: Color(0xFF1695A3), size: 18),
+                  const SizedBox(width: 8),
+                  Text('Seleccionar tipo',
+                      style: TextStyle(
+                          color: Colors.grey.shade500, fontSize: 13)),
+                ],
+              ),
+              icon: const Icon(Icons.keyboard_arrow_down,
+                  color: Color(0xFF1695A3)),
+              style: const TextStyle(fontSize: 13, color: Color(0xFF225378)),
+              onChanged: (v) => setState(() => _tipoSeleccionado = v),
+              items: tipos
+                  .map((t) => DropdownMenuItem(
+                        value: t,
+                        child: Row(
+                          children: [
+                            const Icon(Icons.category_outlined,
+                                color: Color(0xFF1695A3), size: 16),
+                            const SizedBox(width: 8),
+                            Text(t, style: const TextStyle(fontSize: 13)),
+                          ],
+                        ),
+                      ))
+                  .toList(),
+            ),
+          ),
+        ),
+      ],
     );
   }
 

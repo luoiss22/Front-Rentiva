@@ -16,6 +16,7 @@ class ContratoPdf {
       renta: propiedad.precio,
       ciudad: propiedad.ciudad,
       fechaInicio: inquilino.desde,
+      fotoUrl: inquilino.fotoUrl,
     );
   }
 
@@ -29,10 +30,21 @@ class ContratoPdf {
     String? fechaInicio,
     String? fechaFin,
     String? deposito,
+    String? fotoUrl,
   }) async {
 
     final pdf = pw.Document();
     final now = DateTime.now();
+
+    // Foto del arrendatario (si tiene una registrada)
+    pw.ImageProvider? fotoArrendatario;
+    if (fotoUrl != null && fotoUrl.isNotEmpty) {
+      try {
+        fotoArrendatario = await networkImage(fotoUrl);
+      } catch (_) {
+        fotoArrendatario = null;
+      }
+    }
 
     // ── Datos para rellenar ──────────────────────────────────────────────
     final arrendadorNombre = arrendador ?? 'El Propietario';
@@ -168,19 +180,49 @@ class ContratoPdf {
               border: pw.Border.all(color: teal, width: 0.5),
               borderRadius: pw.BorderRadius.circular(6),
             ),
-            child: pw.Column(
+            child: pw.Row(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
-                pw.Text('DATOS DEL CONTRATO', style: subtitleStyle),
-                pw.SizedBox(height: 8),
-                _datoRow('Arrendador:', arrendadorNombre, boldBody, bodyStyle),
-                _datoRow('Arrendatario:', arrendatario, boldBody, bodyStyle),
-                _datoRow('Fiador:', fiador, boldBody, bodyStyle),
-                _datoRow('Inmueble:', inmuebleDireccion, boldBody, bodyStyle),
-                _datoRow('Renta mensual:', renta, boldBody, bodyStyle),
-                _datoRow('Vigencia:', vigencia, boldBody, bodyStyle),
-                _datoRow('Fecha:', '$dia de $mes de $anio', boldBody, bodyStyle),
-                _datoRow('Lugar:', ciudad, boldBody, bodyStyle),
+                pw.Expanded(
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text('DATOS DEL CONTRATO', style: subtitleStyle),
+                      pw.SizedBox(height: 8),
+                      _datoRow('Arrendador:', arrendadorNombre, boldBody, bodyStyle),
+                      _datoRow('Arrendatario:', arrendatario, boldBody, bodyStyle),
+                      _datoRow('Fiador:', fiador, boldBody, bodyStyle),
+                      _datoRow('Inmueble:', inmuebleDireccion, boldBody, bodyStyle),
+                      _datoRow('Renta mensual:', renta, boldBody, bodyStyle),
+                      _datoRow('Vigencia:', vigencia, boldBody, bodyStyle),
+                      _datoRow('Fecha:', '$dia de $mes de $anio', boldBody, bodyStyle),
+                      _datoRow('Lugar:', ciudad, boldBody, bodyStyle),
+                    ],
+                  ),
+                ),
+                if (fotoArrendatario != null) ...[
+                  pw.SizedBox(width: 12),
+                  pw.Column(
+                    children: [
+                      pw.Container(
+                        width: 70,
+                        height: 90,
+                        decoration: pw.BoxDecoration(
+                          border: pw.Border.all(color: teal, width: 0.5),
+                          borderRadius: pw.BorderRadius.circular(4),
+                          image: pw.DecorationImage(
+                            image: fotoArrendatario,
+                            fit: pw.BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                      pw.SizedBox(height: 4),
+                      pw.Text('Arrendatario',
+                          style: const pw.TextStyle(
+                              fontSize: 7, color: PdfColors.grey600)),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
