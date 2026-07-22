@@ -1,4 +1,4 @@
-name: Deploy Frontend
+name: Build Frontend
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - main
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
 
     steps:
@@ -24,26 +24,3 @@ jobs:
 
       - name: Build web
         run: flutter build web --release --base-href /
-
-      - name: Prepare remote folder
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT || 22 }}
-          script: |
-            set -e
-            mkdir -p /srv/front-rentiva/build/web
-            rm -rf /srv/front-rentiva/build/web/*
-
-      - name: Deploy to VPS
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT || 22 }}
-          source: "build/web/*"
-          target: "/srv/front-rentiva/build/web"
-          strip_components: 2
